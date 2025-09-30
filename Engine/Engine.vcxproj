@@ -337,6 +337,10 @@
     <ClInclude Include="Source\Render\Renderer\Public\DeviceResources.h" />
     <ClInclude Include="Source\Render\Renderer\Public\Pipeline.h" />
     <ClInclude Include="Source\Render\Renderer\Public\Renderer.h" />
+    <ClInclude Include="Source\Render\Culling\Public\CullingManager.h" />
+    <ClInclude Include="Source\Render\Culling\Public\FrustumCuller.h" />
+    <ClInclude Include="Source\Render\Culling\Public\LODManager.h" />
+    <ClInclude Include="Source\Render\Culling\Public\OcclusionCuller.h" />
     <ClInclude Include="Source\Render\Spatial\Public\Frustum.h">
       <DeploymentContent>false</DeploymentContent>
     </ClInclude>
@@ -487,6 +491,10 @@
     <ClCompile Include="Source\Render\Renderer\Private\DeviceResources.cpp" />
     <ClCompile Include="Source\Render\Renderer\Private\Pipeline.cpp" />
     <ClCompile Include="Source\Render\Renderer\Private\Renderer.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\CullingManager.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\FrustumCuller.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\LODManager.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\OcclusionCuller.cpp" />
     <ClCompile Include="Source\Render\FontRenderer\Private\FontRenderer.cpp" />
     <ClCompile Include="Source\Render\Spatial\Private\Frustum.cpp">
       <DeploymentContent>false</DeploymentContent>
@@ -582,5 +590,10 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Engine.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Source\Render\Culling\Private\OcclusionCullerImpl.inl">
+      <FileType>CppHeader</FileType>
+    </None>
   </ItemGroup>
 </Project>

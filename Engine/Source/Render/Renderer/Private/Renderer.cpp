@@ -21,6 +21,9 @@
 #include "Source/Component/Mesh/Public/StaticMesh.h"
 #include "Render/Spatial/Public/Frustum.h"
 #include "Utility/Public/ScopeCycleCounter.h"
+#include "Render/Culling/Public/CullingManager.h"
+#include "Render/Culling/Public/LODManager.h"
+#include "Render/Culling/Public/OcclusionCuller.h"
 #include <immintrin.h> 
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
@@ -34,7 +37,7 @@ void URenderer::Init(HWND InWindowHandle)
 	DeviceResources = new UDeviceResources(InWindowHandle);
 	Pipeline = new UPipeline(GetDeviceContext());
 	ViewportClient = new FViewport();
-	
+
 
 	// 래스터라이저 상태 생성
 	CreateRasterizerState();
@@ -43,7 +46,10 @@ void URenderer::Init(HWND InWindowHandle)
 	CreateTextureShader();
 	CreateComputeShader();
 	CreateConstantBuffer();
-	InitializeHZB();
+
+	// Culling Manager 초기화
+	CullingManager = &UCullingManager::GetInstance();
+	CullingManager->Initialize(DeviceResources);
 
 	// FontRenderer 초기화
 	FontRenderer = new UFontRenderer();
@@ -57,13 +63,16 @@ void URenderer::Init(HWND InWindowHandle)
 
 	// Compute Shader 테스트 실행 (한번만)
 	TestComputeShaderExecution();
-
-	// LOD 설정 로드
-	LoadLODSettings();
 }
 
 void URenderer::Release()
 {
+	// Culling Manager 해제
+	if (CullingManager)
+	{
+		CullingManager->Release();
+	}
+
 	ReleaseConstantBuffer();
 	ReleaseDefaultShader();
 	ReleaseComputeShader();
@@ -300,10 +309,12 @@ void URenderer::Update()
 	}
 
 	// HZB 생성 (매 프레임 깊이 버퍼 완료 후)
-	GenerateHZB();
-
-	// HZB 생성 직후 Occlusion Culling용 캐시 생성
-	CacheHZBForOcclusion();
+	if (CullingManager && CullingManager->GetOcclusionCuller())
+	{
+		CullingManager->GetOcclusionCuller()->GenerateHZB();
+		// HZB 생성 직후 Occlusion Culling용 캐시 생성
+		CullingManager->GetOcclusionCuller()->CacheHZBForOcclusion();
+	}
 
 
 	// 최상위 에디터/GUI는 프레임에 1회만
@@ -353,21 +364,23 @@ void URenderer::RenderLevel(UCamera* InCurrentCamera)
 	// 옥클루전 콜백 구조체 준비
 	struct OcclusionContext
 	{
-		const URenderer* Renderer;
+		UOcclusionCuller* OcclusionCuller;
 		const UCamera* Camera;
 		bool bHZBValid;
 	};
 
-	OcclusionContext Context = { this, InCurrentCamera, bHZBCacheValid && !CachedHZBLevel3.empty() };
+	UOcclusionCuller* OcclusionCuller = CullingManager ? CullingManager->GetOcclusionCuller() : nullptr;
+	bool bHZBValid = OcclusionCuller && OcclusionCuller->IsHZBCacheValid();
+
+	OcclusionContext Context = { OcclusionCuller, InCurrentCamera, bHZBValid };
 
 	// 옥클루전 콜백 함수 (노드 AABB용 - 보수적 처리)
 	auto IsOccludedCallback = [](const FAABB& bounds, const void* context) -> bool
 	{
 		const OcclusionContext* ctx = static_cast<const OcclusionContext*>(context);
-		if (!ctx->bHZBValid) return false;
+		if (!ctx->bHZBValid || !ctx->OcclusionCuller) return false;
 
-
-		return ctx->Renderer->IsOccluded(bounds.Min, bounds.Max, ctx->Camera, 2.5f);  // 노드도 3배 확장 (보수적)
+		return ctx->OcclusionCuller->IsOccluded(bounds.Min, bounds.Max, ctx->Camera, 2.5f);  // 노드도 2.5배 확장 (보수적)
 	};
 
 	// 렌더링 통계를 위한 카운터
@@ -386,15 +399,15 @@ void URenderer::RenderLevel(UCamera* InCurrentCamera)
 			return;
 		}
 
-		// LOD 업데이트 추가 (StaticMesh인 경우에만, 3프레임마다)
+		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
 		static int lodFrameCounter = 0;
 		if (primitive->GetPrimitiveType() == EPrimitiveType::StaticMesh && (++lodFrameCounter % 6) == 0)
 		{
 			UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(primitive);
-			if (MeshComp)
+			if (MeshComp && CullingManager && CullingManager->GetLODManager())
 			{
 				// 초고속 LOD 업데이트 (제곱근 계산 없음!)
-				UpdateLODFast(MeshComp, InCurrentCamera->GetLocation());
+				CullingManager->GetLODManager()->UpdateLOD(MeshComp, InCurrentCamera->GetLocation());
 			}
 		}
 
@@ -847,8 +860,10 @@ void URenderer::OnResize(uint32 InWidth, uint32 InHeight)
 	UStatOverlay::GetInstance().OnResize();
 
 	// HZB 리소스 재초기화 (새로운 화면 크기에 맞춤)
-	ReleaseHZBResources();
-	InitializeHZB();
+	if (CullingManager)
+	{
+		CullingManager->OnResize();
+	}
 }
 
 /**
@@ -1246,29 +1261,6 @@ void URenderer::CreateComputeShader()
 	// Test compute shader 컴파일
 	CreateComputeShaderFromFile(L"Asset/Shader/TestComputeShader.hlsl", &TestComputeShader);
 
-	// HZB compute shader 컴파일
-	CreateComputeShaderFromFile(L"Asset/Shader/HZBComputeShader.hlsl", &HZBComputeShader);
-
-	if (HZBComputeShader)
-	{
-	}
-	else
-	{
-		UE_LOG("HZB Compute Shader 컴파일 실패!");
-	}
-
-	// Depth copy compute shader 컴파일
-	CreateComputeShaderFromFile(L"Asset/Shader/DepthCopyComputeShader.hlsl", &DepthCopyComputeShader);
-
-	if (DepthCopyComputeShader)
-	{
-		UE_LOG("Depth Copy Compute Shader 컴파일 성공");
-	}
-	else
-	{
-		UE_LOG("Depth Copy Compute Shader 컴파일 실패!");
-	}
-
 	// Compute constant buffer 생성
 	D3D11_BUFFER_DESC BufferDescription = {};
 	BufferDescription.Usage = D3D11_USAGE_DYNAMIC;
@@ -1277,15 +1269,6 @@ void URenderer::CreateComputeShader()
 	BufferDescription.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
 	GetDevice()->CreateBuffer(&BufferDescription, nullptr, &ComputeConstantBuffer);
-
-	// HZB constant buffer 생성
-	D3D11_BUFFER_DESC HZBBufferDescription = {};
-	HZBBufferDescription.Usage = D3D11_USAGE_DYNAMIC;
-	HZBBufferDescription.ByteWidth = sizeof(FHZBConstants);
-	HZBBufferDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	HZBBufferDescription.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	GetDevice()->CreateBuffer(&HZBBufferDescription, nullptr, &HZBConstantBuffer);
 }
 
 /**
@@ -1299,65 +1282,10 @@ void URenderer::ReleaseComputeShader()
 		TestComputeShader = nullptr;
 	}
 
-	if (HZBComputeShader)
-	{
-		HZBComputeShader->Release();
-		HZBComputeShader = nullptr;
-	}
-
-	if (DepthCopyComputeShader)
-	{
-		DepthCopyComputeShader->Release();
-		DepthCopyComputeShader = nullptr;
-	}
-
 	if (ComputeConstantBuffer)
 	{
 		ComputeConstantBuffer->Release();
 		ComputeConstantBuffer = nullptr;
-	}
-
-	if (HZBConstantBuffer)
-	{
-		HZBConstantBuffer->Release();
-		HZBConstantBuffer = nullptr;
-	}
-
-	// Release HZB depth copy
-	if (HZBDepthCopyUAV)
-	{
-		HZBDepthCopyUAV->Release();
-		HZBDepthCopyUAV = nullptr;
-	}
-	if (HZBDepthCopySRV)
-	{
-		HZBDepthCopySRV->Release();
-		HZBDepthCopySRV = nullptr;
-	}
-	if (HZBDepthCopy)
-	{
-		HZBDepthCopy->Release();
-		HZBDepthCopy = nullptr;
-	}
-
-	// Release HZB textures and views
-	for (int i = 0; i < 4; ++i)
-	{
-		if (HZBSRVs[i])
-		{
-			HZBSRVs[i]->Release();
-			HZBSRVs[i] = nullptr;
-		}
-		if (HZBUAVs[i])
-		{
-			HZBUAVs[i]->Release();
-			HZBUAVs[i] = nullptr;
-		}
-		if (HZBTextures[i])
-		{
-			HZBTextures[i]->Release();
-			HZBTextures[i] = nullptr;
-		}
 	}
 }
 
@@ -1585,966 +1513,3 @@ void URenderer::TestComputeShaderExecution() const
 	TestBuffer->Release();
 }
 
-/**
- * @brief HZB 텍스처와 리소스 초기화 함수
- */
-void URenderer::InitializeHZB()
-{
-	if (!GetDevice() || !DeviceResources)
-	{
-		UE_LOG("HZB 초기화 실패: Device 또는 DeviceResources가 null입니다.");
-		return;
-	}
-
-	// 뷰포트 크기 가져오기
-	const D3D11_VIEWPORT& ViewportInfo = DeviceResources->GetViewportInfo();
-	uint32 width = static_cast<uint32>(ViewportInfo.Width);
-	uint32 height = static_cast<uint32>(ViewportInfo.Height);
-
-	// 깊이 버퍼 복사본 생성 (읽기/쓰기 충돌 방지용)
-	D3D11_TEXTURE2D_DESC depthCopyDesc = {};
-	depthCopyDesc.Width = width;
-	depthCopyDesc.Height = height;
-	depthCopyDesc.MipLevels = 1;
-	depthCopyDesc.ArraySize = 1;
-	depthCopyDesc.Format = DXGI_FORMAT_R32_FLOAT; // 단순한 float 포맷 사용
-	depthCopyDesc.SampleDesc.Count = 1;
-	depthCopyDesc.SampleDesc.Quality = 0;
-	depthCopyDesc.Usage = D3D11_USAGE_DEFAULT;
-	depthCopyDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-	depthCopyDesc.CPUAccessFlags = 0;
-	depthCopyDesc.MiscFlags = 0;
-
-	HRESULT hr = GetDevice()->CreateTexture2D(&depthCopyDesc, nullptr, &HZBDepthCopy);
-	if (FAILED(hr))
-	{
-		UE_LOG("HZB 깊이 버퍼 복사본 생성 실패");
-		return;
-	}
-
-	// 깊이 버퍼 복사본 SRV 생성
-	D3D11_SHADER_RESOURCE_VIEW_DESC depthCopySRVDesc = {};
-	depthCopySRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	depthCopySRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	depthCopySRVDesc.Texture2D.MostDetailedMip = 0;
-	depthCopySRVDesc.Texture2D.MipLevels = 1;
-
-	hr = GetDevice()->CreateShaderResourceView(HZBDepthCopy, &depthCopySRVDesc, &HZBDepthCopySRV);
-	if (FAILED(hr))
-	{
-		UE_LOG("HZB 깊이 버퍼 복사본 SRV 생성 실패");
-	}
-
-	// 깊이 버퍼 복사본 UAV 생성
-	D3D11_UNORDERED_ACCESS_VIEW_DESC depthCopyUAVDesc = {};
-	depthCopyUAVDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	depthCopyUAVDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-	depthCopyUAVDesc.Texture2D.MipSlice = 0;
-
-	hr = GetDevice()->CreateUnorderedAccessView(HZBDepthCopy, &depthCopyUAVDesc, &HZBDepthCopyUAV);
-	if (FAILED(hr))
-	{
-		UE_LOG("HZB 깊이 버퍼 복사본 UAV 생성 실패");
-	}
-
-	// HZB 텍스처 생성 (4개 mip level)
-	for (int mipLevel = 0; mipLevel < 4; ++mipLevel)
-	{
-		uint32 mipWidth = width >> mipLevel;
-		uint32 mipHeight = height >> mipLevel;
-
-		// 최소 크기 1x1 보장
-		mipWidth = mipWidth > 0 ? mipWidth : 1;
-		mipHeight = mipHeight > 0 ? mipHeight : 1;
-
-		// 텍스처 설명
-		D3D11_TEXTURE2D_DESC textureDesc = {};
-		textureDesc.Width = mipWidth;
-		textureDesc.Height = mipHeight;
-		textureDesc.MipLevels = 1;
-		textureDesc.ArraySize = 1;
-		textureDesc.Format = DXGI_FORMAT_R32_FLOAT; // Single channel float for depth
-		textureDesc.SampleDesc.Count = 1;
-		textureDesc.SampleDesc.Quality = 0;
-		textureDesc.Usage = D3D11_USAGE_DEFAULT;
-		textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-		textureDesc.CPUAccessFlags = 0;
-		textureDesc.MiscFlags = 0;
-
-		HRESULT hr = GetDevice()->CreateTexture2D(&textureDesc, nullptr, &HZBTextures[mipLevel]);
-		if (FAILED(hr))
-		{
-			UE_LOG("HZB 텍스처 %d 생성 실패", mipLevel);
-			continue;
-		}
-
-		// UAV 생성
-		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = DXGI_FORMAT_R32_FLOAT;
-		uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-		uavDesc.Texture2D.MipSlice = 0;
-
-		hr = GetDevice()->CreateUnorderedAccessView(HZBTextures[mipLevel], &uavDesc, &HZBUAVs[mipLevel]);
-		if (FAILED(hr))
-		{
-			UE_LOG("HZB UAV %d 생성 실패", mipLevel);
-		}
-
-		// SRV 생성
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Texture2D.MipLevels = 1;
-
-		hr = GetDevice()->CreateShaderResourceView(HZBTextures[mipLevel], &srvDesc, &HZBSRVs[mipLevel]);
-		if (FAILED(hr))
-		{
-			UE_LOG("HZB SRV %d 생성 실패", mipLevel);
-		}
-	}
-
-}
-
-/**
- * @brief HZB 리소스만 해제하는 함수 (컴퓨트 쉐이더는 유지)
- */
-void URenderer::ReleaseHZBResources()
-{
-	// Release HZB depth copy
-	if (HZBDepthCopyUAV)
-	{
-		HZBDepthCopyUAV->Release();
-		HZBDepthCopyUAV = nullptr;
-	}
-	if (HZBDepthCopySRV)
-	{
-		HZBDepthCopySRV->Release();
-		HZBDepthCopySRV = nullptr;
-	}
-	if (HZBDepthCopy)
-	{
-		HZBDepthCopy->Release();
-		HZBDepthCopy = nullptr;
-	}
-
-	// Release HZB textures and views
-	for (int i = 0; i < 4; ++i)
-	{
-		if (HZBSRVs[i])
-		{
-			HZBSRVs[i]->Release();
-			HZBSRVs[i] = nullptr;
-		}
-		if (HZBUAVs[i])
-		{
-			HZBUAVs[i]->Release();
-			HZBUAVs[i] = nullptr;
-		}
-		if (HZBTextures[i])
-		{
-			HZBTextures[i]->Release();
-			HZBTextures[i] = nullptr;
-		}
-	}
-
-	// HZB 캐시 무효화
-	bHZBCacheValid = false;
-	CachedHZBLevel3.clear();
-}
-
-/**
- * @brief 깊이 버퍼에서 HZB 생성하는 함수
- */
-void URenderer::GenerateHZB() const
-{
-	if (!HZBComputeShader || !DepthCopyComputeShader || !DeviceResources)
-	{
-		UE_LOG("HZB 생성 실패: 리소스가 준비되지 않았습니다.");
-		return;
-	}
-
-	// 깊이 버퍼 SRV 가져오기
-	ID3D11ShaderResourceView* depthSRV = DeviceResources->GetDepthStencilSRV();
-	if (!depthSRV)
-	{
-		UE_LOG("HZB 생성 실패: 깊이 버퍼 SRV를 가져올 수 없습니다.");
-		return;
-	}
-
-
-	// 1단계: 깊이 버퍼를 복사본으로 복사 (읽기/쓰기 충돌 방지)
-	// 깊이 스텐실 뷰 언바인딩
-	ID3D11RenderTargetView* rtv = DeviceResources->GetRenderTargetView();
-	GetDeviceContext()->OMSetRenderTargets(1, &rtv, nullptr);
-
-	// 뷰포트 크기 가져오기
-	const D3D11_VIEWPORT& ViewportInfo = DeviceResources->GetViewportInfo();
-	uint32 fullWidth = static_cast<uint32>(ViewportInfo.Width);
-	uint32 fullHeight = static_cast<uint32>(ViewportInfo.Height);
-
-	// 깊이 버퍼 복사 실행
-	GetDeviceContext()->CSSetShaderResources(0, 1, &depthSRV);
-	GetDeviceContext()->CSSetUnorderedAccessViews(0, 1, &HZBDepthCopyUAV, nullptr);
-
-	uint32 copyThreadGroupsX = (fullWidth + 7) / 8;
-	uint32 copyThreadGroupsY = (fullHeight + 7) / 8;
-	DispatchComputeShader(DepthCopyComputeShader, copyThreadGroupsX, copyThreadGroupsY, 1);
-
-	// 리소스 언바인딩
-	ID3D11ShaderResourceView* nullSRV = nullptr;
-	ID3D11UnorderedAccessView* nullUAV = nullptr;
-	GetDeviceContext()->CSSetShaderResources(0, 1, &nullSRV);
-	GetDeviceContext()->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
-
-
-	// 2단계: 복사된 깊이 버퍼에서 HZB 생성
-	// 각 mip 레벨 생성
-	for (uint32 mipLevel = 0; mipLevel < 4; ++mipLevel)
-	{
-		uint32 targetWidth = fullWidth >> mipLevel;
-		uint32 targetHeight = fullHeight >> mipLevel;
-		uint32 sourceWidth = (mipLevel == 0) ? fullWidth : (fullWidth >> (mipLevel - 1));
-		uint32 sourceHeight = (mipLevel == 0) ? fullHeight : (fullHeight >> (mipLevel - 1));
-
-		// 최소 크기 1x1 보장
-		targetWidth = targetWidth > 0 ? targetWidth : 1;
-		targetHeight = targetHeight > 0 ? targetHeight : 1;
-		sourceWidth = sourceWidth > 0 ? sourceWidth : 1;
-		sourceHeight = sourceHeight > 0 ? sourceHeight : 1;
-
-		// 상수 버퍼 업데이트
-		FHZBConstants constants = {};
-		constants.SourceDimensions = FVector2(static_cast<float>(sourceWidth), static_cast<float>(sourceHeight));
-		constants.TargetDimensions = FVector2(static_cast<float>(targetWidth), static_cast<float>(targetHeight));
-		constants.MipLevel = mipLevel;
-		constants.MinDepthClamp = 0.5f;  // Prevent near object culling issues
-
-		D3D11_MAPPED_SUBRESOURCE mappedResource = {};
-		GetDeviceContext()->Map(HZBConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-		memcpy(mappedResource.pData, &constants, sizeof(FHZBConstants));
-		GetDeviceContext()->Unmap(HZBConstantBuffer, 0);
-
-		// 리소스 바인딩
-		GetDeviceContext()->CSSetConstantBuffers(0, 1, &HZBConstantBuffer);
-
-		if (mipLevel == 0)
-		{
-			// Level 0: 복사된 깊이 버퍼에서 복사
-			GetDeviceContext()->CSSetShaderResources(0, 1, &HZBDepthCopySRV);
-		}
-		else
-		{
-			// Level 1+: 이전 mip level에서 다운샘플링
-			ID3D11ShaderResourceView* prevSRV = HZBSRVs[mipLevel - 1];
-			GetDeviceContext()->CSSetShaderResources(0, 1, &prevSRV);
-		}
-
-		GetDeviceContext()->CSSetUnorderedAccessViews(0, 1, &HZBUAVs[mipLevel], nullptr);
-
-		// Dispatch
-		uint32 threadGroupsX = (targetWidth + 7) / 8;
-		uint32 threadGroupsY = (targetHeight + 7) / 8;
-		DispatchComputeShader(HZBComputeShader, threadGroupsX, threadGroupsY, 1);
-
-		// UAV 언바인딩
-		ID3D11UnorderedAccessView* nullUAV = nullptr;
-		GetDeviceContext()->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
-
-		// GPU 동기화 - UAV 쓰기 완료 대기
-		if (mipLevel < 3)  // 마지막 레벨이 아닌 경우에만
-		{
-			// UAV 배리어를 통해 이전 레벨의 쓰기가 완료되었음을 보장
-			ID3D11UnorderedAccessView* barrierUAV = HZBUAVs[mipLevel];
-			GetDeviceContext()->CSSetUnorderedAccessViews(0, 1, &barrierUAV, nullptr);
-			GetDeviceContext()->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
-		}
-	}
-
-	// SRV 언바인딩
-	ID3D11ShaderResourceView* nullSRV2 = nullptr;
-	GetDeviceContext()->CSSetShaderResources(0, 1, &nullSRV2);
-
-	// 깊이 스텐실 뷰 다시 바인딩
-	ID3D11RenderTargetView* rtv2 = DeviceResources->GetRenderTargetView();
-	GetDeviceContext()->OMSetRenderTargets(1, &rtv2, DeviceResources->GetDepthStencilView());
-
-}
-
-
-
-/**
- * @brief HZB에서 특정 좌표의 깊이값을 샘플링하는 함수
- * @param mipLevel 샘플링할 mip level (0~3)
- * @param x X 좌표 (mip level에 맞는 좌표계)
- * @param y Y 좌표 (mip level에 맞는 좌표계)
- * @return 해당 위치의 깊이값 (0.0~1.0), 실패시 -1.0
- */
-float URenderer::SampleHZBDepth(uint32 mipLevel, uint32 x, uint32 y) const
-{
-	if (mipLevel >= 4 || !HZBTextures[mipLevel])
-	{
-		return -1.0f;
-	}
-
-	// 스테이징 텍스처 생성 (1x1 픽셀)
-	D3D11_TEXTURE2D_DESC stagingDesc = {};
-	stagingDesc.Width = 1;
-	stagingDesc.Height = 1;
-	stagingDesc.MipLevels = 1;
-	stagingDesc.ArraySize = 1;
-	stagingDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	stagingDesc.SampleDesc.Count = 1;
-	stagingDesc.SampleDesc.Quality = 0;
-	stagingDesc.Usage = D3D11_USAGE_STAGING;
-	stagingDesc.BindFlags = 0;
-	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	stagingDesc.MiscFlags = 0;
-
-	ID3D11Texture2D* stagingTexture = nullptr;
-	HRESULT hr = GetDevice()->CreateTexture2D(&stagingDesc, nullptr, &stagingTexture);
-	if (FAILED(hr))
-	{
-		return -1.0f;
-	}
-
-	// 특정 픽셀만 복사
-	D3D11_BOX sourceBox = {};
-	sourceBox.left = x;
-	sourceBox.top = y;
-	sourceBox.front = 0;
-	sourceBox.right = x + 1;
-	sourceBox.bottom = y + 1;
-	sourceBox.back = 1;
-
-	GetDeviceContext()->CopySubresourceRegion(
-		stagingTexture, 0, 0, 0, 0,
-		HZBTextures[mipLevel], 0, &sourceBox
-	);
-
-	// CPU에서 데이터 읽기
-	D3D11_MAPPED_SUBRESOURCE mappedResource = {};
-	hr = GetDeviceContext()->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
-
-	float result = -1.0f;
-	if (SUCCEEDED(hr))
-	{
-		float* depthData = static_cast<float*>(mappedResource.pData);
-		result = depthData[0];
-		GetDeviceContext()->Unmap(stagingTexture, 0);
-	}
-
-	stagingTexture->Release();
-	return result;
-}
-
-/**
- * @brief HZB의 특정 mip level에서 영역의 최대 깊이값을 찾는 함수
- * @param mipLevel 검사할 mip level (0~3)
- * @param startX 시작 X 좌표
- * @param startY 시작 Y 좌표
- * @param width 영역 너비
- * @param height 영역 높이
- * @return 영역 내 최대 깊이값 (0.0~1.0), 실패시 -1.0
- */
-float URenderer::SampleHZBRegionMaxDepth(uint32 mipLevel, uint32 startX, uint32 startY, uint32 width, uint32 height) const
-{
-	if (mipLevel >= 4 || !HZBTextures[mipLevel] || width == 0 || height == 0)
-	{
-		return -1.0f;
-	}
-
-	// 스테이징 텍스처 생성
-	D3D11_TEXTURE2D_DESC stagingDesc = {};
-	stagingDesc.Width = width;
-	stagingDesc.Height = height;
-	stagingDesc.MipLevels = 1;
-	stagingDesc.ArraySize = 1;
-	stagingDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	stagingDesc.SampleDesc.Count = 1;
-	stagingDesc.SampleDesc.Quality = 0;
-	stagingDesc.Usage = D3D11_USAGE_STAGING;
-	stagingDesc.BindFlags = 0;
-	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	stagingDesc.MiscFlags = 0;
-
-	ID3D11Texture2D* stagingTexture = nullptr;
-	HRESULT hr = GetDevice()->CreateTexture2D(&stagingDesc, nullptr, &stagingTexture);
-	if (FAILED(hr))
-	{
-		return -1.0f;
-	}
-
-	// 특정 영역 복사
-	D3D11_BOX sourceBox = {};
-	sourceBox.left = startX;
-	sourceBox.top = startY;
-	sourceBox.front = 0;
-	sourceBox.right = startX + width;
-	sourceBox.bottom = startY + height;
-	sourceBox.back = 1;
-
-	GetDeviceContext()->CopySubresourceRegion(
-		stagingTexture, 0, 0, 0, 0,
-		HZBTextures[mipLevel], 0, &sourceBox
-	);
-
-	// CPU에서 데이터 읽기
-	D3D11_MAPPED_SUBRESOURCE mappedResource = {};
-	hr = GetDeviceContext()->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
-
-	float maxDepth = -1.0f;
-	if (SUCCEEDED(hr))
-	{
-		float* depthData = static_cast<float*>(mappedResource.pData);
-		maxDepth = 0.0f;
-
-		for (uint32 y = 0; y < height; ++y)
-		{
-			for (uint32 x = 0; x < width; ++x)
-			{
-				uint32 index = y * (mappedResource.RowPitch / sizeof(float)) + x;
-				maxDepth = std::max(maxDepth, depthData[index]);
-			}
-		}
-
-		GetDeviceContext()->Unmap(stagingTexture, 0);
-	}
-
-	stagingTexture->Release();
-	return maxDepth;
-}
-
-/**
- * @brief SIMD 벡터에서 수평 최대값을 계산하는 헬퍼 함수
- * @param v 4개 float 값을 담은 __m128 벡터
- * @return 벡터 내 4개 값 중 최대값
- */
-__forceinline float HorizontalMax(__m128 v)
-{
-	// [x, y, z, w] -> [z, w, x, y]
-	__m128 temp = _mm_shuffle_ps(v, v, _MM_SHUFFLE(1, 0, 3, 2));
-	// 각 쌍의 최대값: [max(x,z), max(y,w), max(z,x), max(w,y)]
-	__m128 max1 = _mm_max_ps(v, temp);
-	// [max(x,z), max(y,w), max(z,x), max(w,y)] -> [max(y,w), max(x,z), max(w,y), max(z,x)]
-	temp = _mm_shuffle_ps(max1, max1, _MM_SHUFFLE(2, 3, 0, 1));
-	// 최종 최대값: [max(max(x,z),max(y,w)), ...]
-	__m128 max2 = _mm_max_ps(max1, temp);
-	// 첫 번째 요소 추출
-	return _mm_cvtss_f32(max2);
-}
-
-/**
- * @brief 캐시된 HZB 데이터에서 빠른 샘플링 함수 (CPU 기반)
- * @param screenX 스크린 공간 X 좌표 (0~화면너비)
- * @param screenY 스크린 공간 Y 좌표 (0~화면높이)
- * @param width 샘플링할 영역의 너비
- * @param height 샘플링할 영역의 높이
- * @return 해당 영역의 최대 깊이값 (0.0~1.0), 실패시 -1.0
- */
-float URenderer::SampleHZBRect(float screenX, float screenY, float width, float height) const
-{
-	// 캐시가 유효하지 않으면 실패
-	if (!bHZBCacheValid || CachedHZBLevel3.empty() || CachedHZBWidth == 0 || CachedHZBHeight == 0)
-	{
-		return -1.0f;
-	}
-
-	if (width <= 0.0f || height <= 0.0f)
-	{
-		return -1.0f;
-	}
-
-	// mipLevel 3 (1/8 해상도) 좌표로 변환
-	float mipScale = 1.0f / 8.0f;  // mipLevel 3 = 1/8
-	uint32 mipX = static_cast<uint32>(screenX * mipScale);
-	uint32 mipY = static_cast<uint32>(screenY * mipScale);
-	uint32 mipWidth = std::max(1u, static_cast<uint32>(width * mipScale));
-	uint32 mipHeight = std::max(1u, static_cast<uint32>(height * mipScale));
-
-	// 경계 체크
-	if (mipX >= CachedHZBWidth || mipY >= CachedHZBHeight)
-	{
-		return -1.0f;
-	}
-
-	// 영역 클램핑
-	mipWidth = std::min(mipWidth, CachedHZBWidth - mipX);
-	mipHeight = std::min(mipHeight, CachedHZBHeight - mipY);
-
-	// 단일 픽셀 빠른 경로
-	if (mipWidth == 1 && mipHeight == 1)
-	{
-		uint32 index = mipY * CachedHZBWidth + mipX;
-		return CachedHZBLevel3[index];
-	}
-
-	// SIMD로 최적화된 최대값 찾기 (4개씩 동시 처리)
-	float maxDepth = 0.0f;
-	__m128 maxVec = _mm_setzero_ps();
-
-	// 경계 검사 사전 계산으로 루프 내 분기 제거
-	uint32 endY = mipY + mipHeight;
-	uint32 endX = mipX + mipWidth;
-	uint32 simdEndX = endX & ~3u; // 4의 배수로 정렬
-
-	for (uint32 y = mipY; y < endY; ++y)
-	{
-		uint32 rowStart = y * CachedHZBWidth;
-		uint32 x = mipX;
-
-		// 다음 행 프리페칭 (캐시 미스 감소)
-		if (y + 1 < endY)
-		{
-			uint32 nextRowStart = (y + 1) * CachedHZBWidth + mipX;
-			_mm_prefetch(reinterpret_cast<const char*>(&CachedHZBLevel3[nextRowStart]), _MM_HINT_T0);
-		}
-
-		// 4개씩 배치로 처리 (경계 검사 제거)
-		for (; x < simdEndX; x += 4)
-		{
-			uint32 index = rowStart + x;
-			// 사전 계산된 범위 내에서는 경계 검사 불필요
-			__m128 depthVec = _mm_loadu_ps(&CachedHZBLevel3[index]);
-			maxVec = _mm_max_ps(maxVec, depthVec);
-		}
-		
-		// 나머지 처리 (rowStart 재사용)
-		for (; x < endX; ++x)
-		{
-			uint32 index = rowStart + x;
-			maxDepth = std::max(maxDepth, CachedHZBLevel3[index]);
-		}
-	}
-	
-	// SIMD 결과에서 수평 최대값 추출 (최적화된 방법)
-	float simdMax = HorizontalMax(maxVec);
-	maxDepth = std::max(maxDepth, simdMax);
-
-	return maxDepth;
-}
-
-/**
- * @brief 월드 공간 AABB를 스크린 공간으로 투영하는 함수
- * @param worldMin AABB 최소 좌표 (월드 공간)
- * @param worldMax AABB 최대 좌표 (월드 공간)
- * @param camera 현재 카메라
- * @param outScreenX 출력: 스크린 공간 X 좌표
- * @param outScreenY 출력: 스크린 공간 Y 좌표
- * @param outWidth 출력: 스크린 공간 너비
- * @param outHeight 출력: 스크린 공간 높이
- * @param outMinDepth 출력: 최소 깊이값 (0.0~1.0)
- * @return 투영 성공 여부
- */
-bool URenderer::ProjectAABBToScreen(const FVector& worldMin, const FVector& worldMax, const UCamera* camera,
-	float& outScreenX, float& outScreenY, float& outWidth, float& outHeight, float& outMinDepth) const
-{
-	if (!camera || !DeviceResources)
-	{
-		return false;
-	}
-
-	const FViewProjConstants& viewProj = camera->GetFViewProjConstants();
-	const D3D11_VIEWPORT& viewport = DeviceResources->GetViewportInfo();
-
-	// AABB의 8개 꼭짓점 생성
-	FVector corners[8] = {
-		FVector(worldMin.X, worldMin.Y, worldMin.Z),
-		FVector(worldMax.X, worldMin.Y, worldMin.Z),
-		FVector(worldMin.X, worldMax.Y, worldMin.Z),
-		FVector(worldMax.X, worldMax.Y, worldMin.Z),
-		FVector(worldMin.X, worldMin.Y, worldMax.Z),
-		FVector(worldMax.X, worldMin.Y, worldMax.Z),
-		FVector(worldMin.X, worldMax.Y, worldMax.Z),
-		FVector(worldMax.X, worldMax.Y, worldMax.Z)
-	};
-
-	float minScreenX = FLT_MAX, maxScreenX = -FLT_MAX;
-	float minScreenY = FLT_MAX, maxScreenY = -FLT_MAX;
-	float minDepth = FLT_MAX;
-	bool hasValidProjection = false;
-	int validCorners = 0;
-	int behindCamera = 0;
-
-	// 각 꼭짓점을 스크린 공간으로 투영
-	for (int i = 0; i < 8; i++)
-	{
-		FVector4 worldPos(corners[i].X, corners[i].Y, corners[i].Z, 1.0f);
-
-		// ViewProjection 변환
-		FVector4 clipPos = worldPos * viewProj.View * viewProj.Projection;
-
-		// 클리핑 공간에서 W 체크
-		if (clipPos.W <= 0.001f)  // 카메라 뒤에 있는 점
-		{
-			behindCamera++;
-			continue;
-		}
-
-		// 동차 나누기 (Perspective divide)
-		float invW = 1.0f / clipPos.W;
-		clipPos.X *= invW;
-		clipPos.Y *= invW;
-		clipPos.Z *= invW;
-
-		// NDC 범위 체크 (-1 ~ 1)
-		if (clipPos.X < -1.5f || clipPos.X > 1.5f ||
-			clipPos.Y < -1.5f || clipPos.Y > 1.5f ||
-			clipPos.Z < -0.1f || clipPos.Z > 1.1f)
-		{
-			// 약간의 여유를 두고 범위를 벗어나는 점은 클램핑
-			clipPos.X = std::max(-1.5f, std::min(1.5f, clipPos.X));
-			clipPos.Y = std::max(-1.5f, std::min(1.5f, clipPos.Y));
-			clipPos.Z = std::max(0.0f, std::min(1.0f, clipPos.Z));
-		}
-
-		// NDC(-1~1)를 스크린 좌표(0~width, 0~height)로 변환
-		float screenX = (clipPos.X + 1.0f) * 0.5f * viewport.Width;
-		float screenY = (1.0f - clipPos.Y) * 0.5f * viewport.Height;  // Y축 뒤집기
-		float depth = clipPos.Z;  // 0~1 범위의 깊이
-
-		minScreenX = std::min(minScreenX, screenX);
-		maxScreenX = std::max(maxScreenX, screenX);
-		minScreenY = std::min(minScreenY, screenY);
-		maxScreenY = std::max(maxScreenY, screenY);
-		minDepth = std::min(minDepth, depth);
-
-		hasValidProjection = true;
-		validCorners++;
-	}
-
-	// 모든 점이 카메라 뒤에 있거나, 유효한 점이 너무 적으면 실패
-	if (!hasValidProjection || validCorners < 2)
-	{
-		return false;
-	}
-
-	// 결과 계산 (적당한 보수적 확장)
-	float marginX = std::max(2.0f, (maxScreenX - minScreenX) * 0.05f);  // 5% 또는 최소 2픽셀
-	float marginY = std::max(2.0f, (maxScreenY - minScreenY) * 0.05f);
-
-	outScreenX = std::max(0.0f, minScreenX - marginX);
-	outScreenY = std::max(0.0f, minScreenY - marginY);
-	outWidth = std::min(viewport.Width, maxScreenX + marginX) - outScreenX;
-	outHeight = std::min(viewport.Height, maxScreenY + marginY) - outScreenY;
-	outMinDepth = std::max(0.0f, std::min(1.0f, minDepth));
-
-	// 유효한 영역인지 확인
-	return outWidth > 0.0f && outHeight > 0.0f;
-}
-
-/**
- * @brief 객체가 가려져 있는지 확인하는 함수
- * @param worldMin AABB 최소 좌표 (월드 공간)
- * @param worldMax AABB 최대 좌표 (월드 공간)
- * @param camera 현재 카메라
- * @return true면 가려져 있음 (렌더링 불필요), false면 보임 (렌더링 필요)
- */
-bool URenderer::IsOccluded(const FVector& worldMin, const FVector& worldMax, const UCamera* camera) const
-{
-	return IsOccluded(worldMin, worldMax, camera, 3.0f);  // 기본 3배 확장
-}
-
-bool URenderer::IsOccluded(const FVector& worldMin, const FVector& worldMax, const UCamera* camera, float expansionFactor) const
-{
-	// 카메라와 AABB 사이의 최단 거리 계산 - 물체 크기를 고려한 거리 체크
-	FVector center = (worldMin + worldMax) * 0.5f;
-	FVector cameraPos = camera->GetLocation();
-
-	// Clamp 함수 정의
-	auto clamp = [](float value, float min, float max) -> float {
-		if (value < min) return min;
-		if (value > max) return max;
-		return value;
-	};
-
-	// AABB와 점(카메라) 사이의 최단 거리 계산
-	FVector closestPoint;
-	closestPoint.X = clamp(cameraPos.X, worldMin.X, worldMax.X);
-	closestPoint.Y = clamp(cameraPos.Y, worldMin.Y, worldMax.Y);
-	closestPoint.Z = clamp(cameraPos.Z, worldMin.Z, worldMax.Z);
-
-	float distanceToAABB = (cameraPos - closestPoint).Length();
-
-	// 카메라가 AABB 내부에 있거나 10.0f 거리 이내의 물체는 컬링하지 않음
-	if (distanceToAABB < 10.0f)
-	{
-		return false;
-	}
-
-	// 보수적 컬링을 위해 AABB를 확대 (더 큰 bounding box로 테스트)
-	// 이렇게 하면 더 큰 영역에서 테스트하므로 false negative 감소 (덜 적극적인 컬링)
-	FVector size = (worldMax - worldMin) * expansionFactor;  // 지정된 배수로 확대
-	FVector conservativeMin = center - size * 0.5f;
-	FVector conservativeMax = center + size * 0.5f;
-
-	float screenX, screenY, width, height, minDepth;
-
-
-	// 확대된 AABB를 스크린 공간으로 투영
-	if (!ProjectAABBToScreen(conservativeMin, conservativeMax, camera, screenX, screenY, width, height, minDepth))
-	{
-		return true;  // 투영 실패 = 화면 밖에 있음 = 컬링
-	}
-
-	// 화면 영역이 너무 작으면 컬링하지 않음 (적당히 보수적으로)
-	//if (width < 10.0f || height < 10.0f)
-	//{
-	//	return false;  // 매우 작은 객체는 가려짐 테스트 생략
-	//}
-
-	// HZB에서 해당 영역의 최대 깊이 샘플링
-	float hzbMaxDepth = SampleHZBRect(screenX, screenY, width, height);
-
-	if (hzbMaxDepth < 0.0f)
-	{
-		return false;  // HZB 샘플링 실패 = 안전하게 보이는 것으로 처리
-	}
-
-	// Occlusion 테스트: HZB 최대 깊이 < 객체 최소 깊이 → 완전히 가려짐
-	// 적당한 bias로 false negative 방지하면서 컬링 효율성 유지
-	// 정규화된 깊이 비교 (부동소수점 정밀도 문제 해결)
-	// 깊이 범위에 비례한 상대적 bias 사용
-
-	// Multi-scale bias: 깊이 구간별로 최적화된 bias 적용
-	// 일반적인 상황에서는 0.0003이 잘 작동하지만 깊이별로 세분화
-
-	// 3프레임 연속 시스템과 함께 사용할 적당한 bias (안정적)
-	float depthBias = 0.0005f;
-
-	//// 깊이 구간별 최적화된 bias 적용
-	//if (minDepth < 0.93f) {
-	//	depthBias = 0.0005f;    // 근거리: 매우 정밀한 bias (높은 정밀도 구간)
-	//}
-	//else if (minDepth < 0.95f) {
-	//	depthBias = 0.0007f;     // 근-중거리: 작은 bias
-	//}
-	//else if (minDepth < 0.965f) {
-	//	depthBias = 0.001f;    // 근거리: 매우 정밀한 bias (높은 정밀도 구간)
-	//}
-	//else if (minDepth < 0.98f) {
-	//	depthBias = 0.0015f;     // 근-중거리: 작은 bias
-	//}
-	//else if (minDepth < 0.99f) {
-	//	depthBias = 0.002f;    // 근거리: 매우 정밀한 bias (높은 정밀도 구간)
-	//}
-	//else if (minDepth < 0.995f) {
-	//	depthBias = 0.003f;     // 근-중거리: 작은 bias
-	//}
-	//else
-	//{
-	//	depthBias = 0.005f;     // 근-중거리: 작은 bias
-	//}
-
-	bool isOccluded = (hzbMaxDepth + depthBias) < minDepth;
-
-	// 시점별 깊이 분포 및 카메라 속도 디버깅
-	static int totalTests = 0;
-	static int occludedCount = 0;
-	static float minHZBDepth = FLT_MAX;
-	static float maxHZBDepth = -FLT_MAX;
-	static float minObjDepth = FLT_MAX;
-	static float maxObjDepth = -FLT_MAX;
-	totalTests++;
-	if (isOccluded) occludedCount++;
-
-	// 깊이 범위 추적
-	if (hzbMaxDepth >= 0.0f)
-	{
-		minHZBDepth = std::min(minHZBDepth, hzbMaxDepth);
-		maxHZBDepth = std::max(maxHZBDepth, hzbMaxDepth);
-	}
-	minObjDepth = std::min(minObjDepth, minDepth);
-	maxObjDepth = std::max(maxObjDepth, minDepth);
-
-	return isOccluded;
-}
-
-/**
- * @brief HZB mipLevel 3를 CPU 메모리로 캐시하는 함수
- */
-void URenderer::CacheHZBForOcclusion() const
-{
-	if (!DeviceResources || !HZBTextures[3])
-	{
-		bHZBCacheValid = false;
-		return;
-	}
-
-	const D3D11_VIEWPORT& viewport = DeviceResources->GetViewportInfo();
-	CachedHZBWidth = static_cast<uint32>(viewport.Width) / 8;  // mipLevel 3 = 1/8 해상도
-	CachedHZBHeight = static_cast<uint32>(viewport.Height) / 8;
-
-	// 최소 크기 보장
-	CachedHZBWidth = std::max(1u, CachedHZBWidth);
-	CachedHZBHeight = std::max(1u, CachedHZBHeight);
-
-	// 캐시 배열 크기 조정
-	CachedHZBLevel3.resize(CachedHZBWidth * CachedHZBHeight);
-
-	// 스테이징 텍스처 재사용 최적화
-	ID3D11Texture2D* stagingTexture = nullptr;
-	HRESULT hr = S_OK;
-
-	// 기존 스테이징 텍스처가 크기가 맞으면 재사용
-	if (CachedStagingTexture &&
-		CachedStagingWidth == CachedHZBWidth &&
-		CachedStagingHeight == CachedHZBHeight)
-	{
-		stagingTexture = CachedStagingTexture;
-	}
-	else
-	{
-		// 기존 텍스처 해제
-		if (CachedStagingTexture)
-		{
-			CachedStagingTexture->Release();
-			CachedStagingTexture = nullptr;
-		}
-
-		// 새 스테이징 텍스처 생성
-		D3D11_TEXTURE2D_DESC stagingDesc = {};
-		stagingDesc.Width = CachedHZBWidth;
-		stagingDesc.Height = CachedHZBHeight;
-		stagingDesc.MipLevels = 1;
-		stagingDesc.ArraySize = 1;
-		stagingDesc.Format = DXGI_FORMAT_R32_FLOAT;
-		stagingDesc.SampleDesc.Count = 1;
-		stagingDesc.SampleDesc.Quality = 0;
-		stagingDesc.Usage = D3D11_USAGE_STAGING;
-		stagingDesc.BindFlags = 0;
-		stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-		stagingDesc.MiscFlags = 0;
-
-		hr = GetDevice()->CreateTexture2D(&stagingDesc, nullptr, &stagingTexture);
-		if (FAILED(hr))
-		{
-			bHZBCacheValid = false;
-			return;
-		}
-
-		// 캐시 업데이트
-		CachedStagingTexture = stagingTexture;
-		CachedStagingWidth = CachedHZBWidth;
-		CachedStagingHeight = CachedHZBHeight;
-	}
-
-	// 전체 mipLevel 3 텍스처를 스테이징으로 복사
-	GetDeviceContext()->CopyResource(stagingTexture, HZBTextures[3]);
-
-	// CPU에서 데이터 읽기
-	D3D11_MAPPED_SUBRESOURCE mappedResource = {};
-	hr = GetDeviceContext()->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
-
-	if (SUCCEEDED(hr))
-	{
-		float* sourceData = static_cast<float*>(mappedResource.pData);
-		uint32 sourceRowPitch = mappedResource.RowPitch / sizeof(float);
-
-		// 최적화된 메모리 복사
-		if (sourceRowPitch == CachedHZBWidth)
-		{
-			// RowPitch가 정확히 맞으면 한 번에 복사
-			memcpy(CachedHZBLevel3.data(), sourceData, CachedHZBWidth * CachedHZBHeight * sizeof(float));
-		}
-		else
-		{
-			// RowPitch가 다르면 행별로 memcpy
-			for (uint32 y = 0; y < CachedHZBHeight; ++y)
-			{
-				const float* sourceRow = sourceData + y * sourceRowPitch;
-				float* destRow = CachedHZBLevel3.data() + y * CachedHZBWidth;
-				memcpy(destRow, sourceRow, CachedHZBWidth * sizeof(float));
-			}
-		}
-
-		GetDeviceContext()->Unmap(stagingTexture, 0);
-		bHZBCacheValid = true;
-	}
-	else
-	{
-		bHZBCacheValid = false;
-	}
-
-	// 스테이징 텍스처는 캐시되므로 여기서 해제하지 않음
-	// CachedStagingTexture가 캐시에 보관되어 다음 프레임에서 재사용됨
-}
-
-/**
- * @brief 캐시된 HZB 데이터 해제 함수
- */
-void URenderer::ReleaseCachedHZB() const
-{
-	CachedHZBLevel3.clear();
-	bHZBCacheValid = false;
-	CachedHZBWidth = 0;
-	CachedHZBHeight = 0;
-
-	// 캐시된 스테이징 텍스처도 해제
-	if (CachedStagingTexture)
-	{
-		CachedStagingTexture->Release();
-		CachedStagingTexture = nullptr;
-	}
-	CachedStagingWidth = 0;
-	CachedStagingHeight = 0;
-}
-
-__forceinline void URenderer::UpdateLODFast(UStaticMeshComponent* MeshComp, const FVector& CameraPos) const
-{
-	// 거리 제곱 계산 (매우 빠름)
-	const FVector ObjPos = MeshComp->GetRelativeLocation();
-	const float dx = CameraPos.X - ObjPos.X;
-	const float dy = CameraPos.Y - ObjPos.Y;
-	const float dz = CameraPos.Z - ObjPos.Z;
-	const float DistSq = dx * dx + dy * dy + dz * dz;
-
-	// Config 기반 LOD 선택
-	int NewLOD;
-	if (!bLODEnabled)
-	{
-		NewLOD = 0;  // LOD 비활성화 시 최고 품질
-	}
-	else if (DistSq > LODDistanceSquared1)
-		NewLOD = 2;
-	else if (DistSq > LODDistanceSquared0)
-		NewLOD = 1;
-	else
-		NewLOD = 0;
-
-	// LOD 변경이 필요할 때만 업데이트
-	if (MeshComp->GetCurrentLODIndex() != NewLOD)
-	{
-		MeshComp->SetCurrentLODIndex(NewLOD);
-
-		// 통계 업데이트
-		LODStats.LODUpdatesPerFrame++;
-		switch (NewLOD)
-		{
-		case 0: LODStats.LOD0Count++; break;
-		case 1: LODStats.LOD1Count++; break;
-		case 2: LODStats.LOD2Count++; break;
-		}
-	}
-}
-
-void URenderer::LoadLODSettings()
-{
-	// Config Manager를 통해 LOD 설정 로드
-	UConfigManager& ConfigManager = UConfigManager::GetInstance();
-
-	// LOD 활성화 설정
-	bLODEnabled = ConfigManager.GetConfigValueBool("LODEnabled", true);
-
-	// LOD 거리 설정 (일반 거리 값을 제곱해서 저장)
-	float LODDistance0 = ConfigManager.GetConfigValueFloat("LODDistance0", 10.0f);
-	float LODDistance1 = ConfigManager.GetConfigValueFloat("LODDistance1", 80.0f);
-
-	LODDistanceSquared0 = LODDistance0 * LODDistance0;
-	LODDistanceSquared1 = LODDistance1 * LODDistance1;
-
-	UE_LOG("LOD Settings Loaded - Enabled: %s, Distance0: %.1f (%.0f), Distance1: %.1f (%.0f)",
-		bLODEnabled ? "true" : "false",
-		LODDistance0, LODDistanceSquared0,
-		LODDistance1, LODDistanceSquared1);
-}
