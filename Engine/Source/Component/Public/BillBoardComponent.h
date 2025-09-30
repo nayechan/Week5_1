@@ -4,11 +4,11 @@
 
 class AActor;
 
-class UBillBoardComponent : public UPrimitiveComponent
+class UTextBillboardComponent : public UPrimitiveComponent
 {
 public:
-	UBillBoardComponent(AActor* InOwnerActor, float InYOffset);
-	~UBillBoardComponent();
+	UTextBillboardComponent(AActor* InOwnerActor, float InYOffset);
+	~UTextBillboardComponent();
 
 	void UpdateRotationMatrix(const FVector& InCameraLocation);
 

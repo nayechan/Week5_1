@@ -682,7 +682,7 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 	}
 }
 
-void URenderer::RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* InCurrentCamera)
+void URenderer::RenderBillboard(UTextBillboardComponent* InBillBoardComp, UCamera* InCurrentCamera)
 {
 	if (!InCurrentCamera)	return;
 

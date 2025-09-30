@@ -236,7 +236,7 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 				}
 				else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard && (ShowFlags & EEngineShowFlags::SF_BillboardText) && (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
 				{
-					//TObjectPtr<UBillBoardComponent> BillBoard = Cast<UBillBoardComponent>(PrimitiveComponent);
+					//TObjectPtr<UTextBillboardComponent> BillBoard = Cast<UTextBillboardComponent>(PrimitiveComponent);
 					//BillBoard->UpdateRotationMatrix();
 					LevelPrimitiveComponents.push_back(PrimitiveComponent);
 				}
@@ -307,7 +307,7 @@ bool ULevel::DestroyActor(AActor* InActor)
 		const auto& Iterator = std::find(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(), ActorComponent);
 		if(Iterator != LevelPrimitiveComponents.end())
 			LevelPrimitiveComponents.erase(Iterator);
-		if (ActorComponent->GetClass() == UBillBoardComponent::StaticClass())
+		if (ActorComponent->GetClass() == UTextBillboardComponent::StaticClass())
 		{
 			continue;
 		}

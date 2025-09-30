@@ -136,7 +136,7 @@ void UEditor::RenderEditor(UCamera* InCamera)
 
 		for (const auto& Comp : SelectedActor->GetOwnedComponents())
         {
-			if (UBillBoardComponent* BillboardComp = Cast<UBillBoardComponent>(Comp.Get()))
+			if (UTextBillboardComponent* BillboardComp = Cast<UTextBillboardComponent>(Comp.Get()))
 			{
 				URenderer::GetInstance().RenderBillboard(BillboardComp, InCamera);
 				break;	// Assume one billboard per actor

@@ -6,21 +6,21 @@
 
 /**
  * @brief Level에서 각 Actor마다 가지고 있는 UUID를 출력해주기 위한 빌보드 클래스
- * Actor has a UBillBoardComponent
+ * Actor has a UTextBillboardComponent
  */
-UBillBoardComponent::UBillBoardComponent(AActor* InOwnerActor, float InYOffset)
+UTextBillboardComponent::UTextBillboardComponent(AActor* InOwnerActor, float InYOffset)
 	: POwnerActor(InOwnerActor)
 	, ZOffset(InYOffset)
 {
 	Type = EPrimitiveType::BillBoard;
 }
 
-UBillBoardComponent::~UBillBoardComponent()
+UTextBillboardComponent::~UTextBillboardComponent()
 {
 	POwnerActor = nullptr;
 }
 
-void UBillBoardComponent::UpdateRotationMatrix(const FVector& InCameraLocation)
+void UTextBillboardComponent::UpdateRotationMatrix(const FVector& InCameraLocation)
 {
 	const FVector& OwnerActorLocation = POwnerActor->GetActorLocation();
 
