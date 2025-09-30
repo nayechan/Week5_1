@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Render/Spatial/Public/Octree.h"
+#include "Render/Spatial/Public/CullingStrategy.h"
 #include "Component/Public/PrimitiveComponent.h"
 
 FOctree::FOctreeNode::~FOctreeNode()
@@ -415,6 +416,48 @@ TArray<UPrimitiveComponent*> FOctree::QueryFrustumWithOcclusion(const FFrustum& 
 	return Results;
 }
 
+TArray<UPrimitiveComponent*> FOctree::GatherVisible(const ICullingStrategy& Strategy) const
+{
+	TArray<UPrimitiveComponent*> Results;
+	if (Root)
+	{
+		Root->GatherVisible(Strategy, Results);
+	}
+	return Results;
+}
+
+
+void FOctree::FOctreeNode::GatherVisible(const ICullingStrategy& Strategy, TArray<UPrimitiveComponent*>& Results) const
+{
+	// 1. 노드 레벨 컬링
+	if (Strategy.ShouldCullNode(Bounds))
+		return;  // 이 노드와 모든 자식 스킵
+
+	// 2. 노드 내 객체들 수집
+	for (UPrimitiveComponent* Object : Objects)
+	{
+		FVector Min, Max;
+		Object->GetWorldAABB(Min, Max);
+		FAABB ObjectBounds(Min, Max);
+
+		if (!Strategy.ShouldCullPrimitive(ObjectBounds))
+		{
+			Results.push_back(Object);
+		}
+	}
+
+	// 3. 자식들도 재귀적으로 처리
+	if (!bIsLeaf)
+	{
+		for (FOctreeNode* Child : Children)
+		{
+			if (Child)
+			{
+				Child->GatherVisible(Strategy, Results);
+			}
+		}
+	}
+}
 
 void FOctree::FOctreeNode::UpdateNodeOcclusionState(bool bIsOccludedThisFrame) const
 {

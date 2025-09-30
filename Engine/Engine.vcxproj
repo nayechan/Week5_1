@@ -347,6 +347,12 @@
     <ClInclude Include="Source\Render\Spatial\Public\Octree.h">
       <DeploymentContent>false</DeploymentContent>
     </ClInclude>
+    <ClInclude Include="Source\Render\Spatial\Public\CullingStrategy.h">
+      <DeploymentContent>false</DeploymentContent>
+    </ClInclude>
+    <ClInclude Include="Source\Render\Renderer\Public\RenderCommand.h">
+      <DeploymentContent>false</DeploymentContent>
+    </ClInclude>
     <ClInclude Include="Source\Render\UI\Factory\Public\UIWindowFactory.h" />
     <ClInclude Include="Source\Render\UI\ImGui\Public\ImGuiHelper.h" />
     <ClInclude Include="Source\Render\UI\Overlay\Public\StatOverlay.h" />
@@ -387,6 +393,8 @@
       <DeploymentContent>false</DeploymentContent>
     </ClInclude>
     <ClInclude Include="Source\Utility\Public\ObjExporter.h" />
+    <ClInclude Include="Source\Utility\Public\RadixSort.h" />
+    <ClInclude Include="Source\Utility\Public\SIMDInfo.h" />
     <ClInclude Include="Source\Utility\Public\StaticMeshBVH.h" />
     <ClInclude Include="Source\Utility\Public\SceneBVH.h" />
     <ClInclude Include="Source\Utility\Public\FileDialog.h" />
@@ -500,6 +508,12 @@
       <DeploymentContent>false</DeploymentContent>
     </ClCompile>
     <ClCompile Include="Source\Render\Spatial\Private\Octree.cpp">
+      <DeploymentContent>false</DeploymentContent>
+    </ClCompile>
+    <ClCompile Include="Source\Render\Spatial\Private\CullingStrategy.cpp">
+      <DeploymentContent>false</DeploymentContent>
+    </ClCompile>
+    <ClCompile Include="Source\Render\Renderer\Private\RenderCommand.cpp">
       <DeploymentContent>false</DeploymentContent>
     </ClCompile>
     <ClCompile Include="Source\Render\UI\Factory\Private\UIWindowFactory.cpp" />

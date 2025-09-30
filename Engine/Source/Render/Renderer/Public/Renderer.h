@@ -16,6 +16,7 @@ class UFontRenderer;
 class FViewport;
 class UCamera;
 class UCullingManager;
+enum class EViewModeIndex : uint32;
 
 /**
  * @brief Rendering Pipeline 전반을 처리하는 클래스
@@ -74,11 +75,15 @@ public:
 	void RenderLevel(UCamera* InCurrentCamera);
 	void RenderEnd() const;
 	void RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState);
+	void RenderStaticMeshDirect(UStaticMeshComponent* InMeshComp);  // Batched 렌더링용 (상태 변경 최소화)
 	void RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* InCurrentCamera);
 	void RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3D11RasterizerState* InRasterizerState);
 	void RenderPrimitive(const FEditorPrimitive& InPrimitive, const FRenderState& InRenderState);
 	void RenderPrimitiveIndexed(const FEditorPrimitive& InPrimitive, const FRenderState& InRenderState,
 	                            bool bInUseBaseConstantBuffer, uint32 InStride, uint32 InIndexBufferStride);
+
+	// Batch Rendering (상태 변경 최소화)
+	void RenderBatched(const TArray<struct FRenderCommand>& Commands, UCamera* InCamera, EViewModeIndex ViewMode);
 
 	void OnResize(uint32 Inwidth = 0, uint32 InHeight = 0);
 

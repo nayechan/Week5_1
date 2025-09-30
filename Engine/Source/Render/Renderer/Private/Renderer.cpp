@@ -2,6 +2,7 @@
 #include "Render/Renderer/Public/Renderer.h"
 #include <chrono>
 #include "Render/Renderer/Public/Pipeline.h"
+#include "Render/Renderer/Public/RenderCommand.h"
 #include "Render/FontRenderer/Public/FontRenderer.h"
 #include "Component/Public/BillBoardComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
@@ -20,11 +21,13 @@
 #include "Texture/Public/TextureRenderProxy.h"
 #include "Source/Component/Mesh/Public/StaticMesh.h"
 #include "Render/Spatial/Public/Frustum.h"
+#include "Render/Spatial/Public/CullingStrategy.h"
 #include "Utility/Public/ScopeCycleCounter.h"
 #include "Render/Culling/Public/CullingManager.h"
 #include "Render/Culling/Public/LODManager.h"
 #include "Render/Culling/Public/OcclusionCuller.h"
-#include <immintrin.h> 
+#include <immintrin.h>
+#include "Utility/Public/RadixSort.h" 
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
 
@@ -342,161 +345,86 @@ void URenderer::RenderBegin() const
 }
 
 /**
- * @brief Buffer에 데이터 입력 및 Draw
+ * @brief Buffer에 데이터 입력 및 Draw (리팩토링: 상태 변경 최소화)
  */
 void URenderer::RenderLevel(UCamera* InCurrentCamera)
 {
-
     // Level 없으면 Early Return
     ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
     if (!CurrentLevel)
         return;
 
-	// 통계 초기화
-	uint32 totalStaticPrimitives = CurrentLevel->GetStaticOctree().GetObjectCount();
-	uint32 totalDynamicPrimitives = CurrentLevel->GetDynamicPrimitives().size();
-    uint32 lodCounts[3] = { 0 };
-
-
-	// Frustum Culling Test
-	FFrustum ViewFrustum = InCurrentCamera->GetViewFrustum();
-
-	// 옥클루전 콜백 구조체 준비
-	struct OcclusionContext
-	{
-		UOcclusionCuller* OcclusionCuller;
-		const UCamera* Camera;
-		bool bHZBValid;
-	};
-
-	UOcclusionCuller* OcclusionCuller = CullingManager ? CullingManager->GetOcclusionCuller() : nullptr;
-	bool bHZBValid = OcclusionCuller && OcclusionCuller->IsHZBCacheValid();
-
-	OcclusionContext Context = { OcclusionCuller, InCurrentCamera, bHZBValid };
-
-	// 옥클루전 콜백 함수 (노드 AABB용 - 보수적 처리)
-	auto IsOccludedCallback = [](const FAABB& bounds, const void* context) -> bool
-	{
-		const OcclusionContext* ctx = static_cast<const OcclusionContext*>(context);
-		if (!ctx->bHZBValid || !ctx->OcclusionCuller) return false;
-
-		return ctx->OcclusionCuller->IsOccluded(bounds.Min, bounds.Max, ctx->Camera, 2.5f);  // 노드도 2.5배 확장 (보수적)
-	};
-
-	// 렌더링 통계를 위한 카운터
-	uint32 renderedPrimitiveCount = 0;
-
 	// Get view mode from editor
     const EViewModeIndex ViewMode = ULevelManager::GetInstance().GetEditor()->GetViewMode();
 
-	// 렌더링 콜백 함수
-	auto RenderCallback = [&renderedPrimitiveCount, &lodCounts, &InCurrentCamera, ViewMode, this](UPrimitiveComponent* primitive, const void* context) -> void
-	{
-		if (!primitive) return;
-		if (!primitive->IsVisible())
-		{
-			UE_LOG("Renderer: Primitive %p not visible, skipping render", primitive);
-			return;
-		}
+	// Frustum Culling Strategy 생성
+	FFrustum ViewFrustum = InCurrentCamera->GetViewFrustum();
+	UOcclusionCuller* OcclusionCuller = CullingManager ? CullingManager->GetOcclusionCuller() : nullptr;
+	bool bHZBValid = OcclusionCuller && OcclusionCuller->IsHZBCacheValid();
 
-		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
-		static int lodFrameCounter = 0;
-		if (primitive->GetPrimitiveType() == EPrimitiveType::StaticMesh && (++lodFrameCounter % 6) == 0)
-		{
-			UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(primitive);
-			if (MeshComp && CullingManager && CullingManager->GetLODManager())
-			{
-				// 초고속 LOD 업데이트 (제곱근 계산 없음!)
-				CullingManager->GetLODManager()->UpdateLOD(MeshComp, InCurrentCamera->GetLocation());
-			}
-		}
+	FFrustumWithOcclusionStrategy CullingStrategy(
+		ViewFrustum,
+		bHZBValid ? OcclusionCuller : nullptr,
+		InCurrentCamera,
+		2.5f  // Expansion factor
+	);
 
-		// 카운트 증가
-		renderedPrimitiveCount++;
+	// Step 1: 가시적인 Primitive들을 수집 (캐시 친화적 순회)
+	TArray<FRenderCommand> RenderCommands;
 
-		// 렌더 상태 설정
-		FRenderState RenderState = primitive->GetRenderState();
-		if (ViewMode == EViewModeIndex::VMI_Wireframe)
-		{
-			RenderState.CullMode = ECullMode::None;
-			RenderState.FillMode = EFillMode::WireFrame;
-		}
-
-		ID3D11RasterizerState* LoadedRasterizerState = GetRasterizerState(RenderState);
-
-		switch (primitive->GetPrimitiveType())
-		{
-		case EPrimitiveType::StaticMesh:
-        {
-            UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-            if (MeshComponent)
-            {
-                UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-                if (MeshComponent)
-                {
-					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
-					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
-
-					/*FVector Min, Max;
-					MeshComponent->GetWorldAABB(Min, Max);
-					FVector CompLocation = (Min + Max) * 0.5f;
-					FVector CamerLocation = InCurrentCamera->GetLocation();
-					float DistSq = (CamerLocation - CompLocation).LengthSquared();
-
-				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-				int32 LodIndex = 0;
-				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
-				{
-					if (DistSq >= LodDistanceSq[i])
-					{
-						LodIndex = i;
-						break;
-					}
-					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-                    if (LodIndex >= 0 && LodIndex < 3)
-                    {
-                        lodCounts[LodIndex]++;
-                    }
-                }
-            }
-			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-			break;
-        }
-		default:
-			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
-			break;
-		}
-	};
-
+	// Octree + Dynamic Primitives 전체 크기로 미리 할당 (재할당 방지)
+	// 50000개 * 16바이트 = 800KB로 메모리 부담 없음
+	const uint32 TotalObjectCount = CurrentLevel->GetStaticOctree().GetObjectCount() +
+	                                  static_cast<uint32>(CurrentLevel->GetDynamicPrimitives().size());
+	RenderCommands.reserve(TotalObjectCount);
 
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
-		// 옥트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		CurrentLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
+
+		// Static Primitives 수집
+		CurrentLevel->GetStaticOctree().TraverseVisible(CullingStrategy,
+			[&](UPrimitiveComponent* Prim)
+			{
+				if (Prim && Prim->IsVisible())
+				{
+					// LOD 업데이트 (StaticMesh인 경우에만, 6프레임마다)
+					static int lodFrameCounter = 0;
+					if (Prim->GetPrimitiveType() == EPrimitiveType::StaticMesh && (++lodFrameCounter % 6) == 0)
+					{
+						if (auto* MeshComp = Cast<UStaticMeshComponent>(Prim))
+						{
+							if (CullingManager && CullingManager->GetLODManager())
+							{
+								CullingManager->GetLODManager()->UpdateLOD(MeshComp, InCurrentCamera->GetLocation());
+							}
+						}
+					}
+
+					RenderCommands.push_back({Prim, FRenderCommand::BuildSortKey(Prim)});
+				}
+			});
+
+		// Dynamic Primitives 수집
+		const auto& DynamicPrimitives = CurrentLevel->GetDynamicPrimitives();
+		for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
+		{
+			if (!DynPrim || !DynPrim->IsVisible()) continue;
+
+			FVector WorldMin, WorldMax;
+			DynPrim->GetWorldAABB(WorldMin, WorldMax);
+			if (ViewFrustum.IsBoxInFrustum(FAABB(WorldMin, WorldMax)))
+			{
+				RenderCommands.push_back({DynPrim, FRenderCommand::BuildSortKey(DynPrim)});
+			}
+		}
 	}
 
-	// Dynamic Primitives 처리
-	const auto& DynamicPrimitives = CurrentLevel->GetDynamicPrimitives();
-	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
-	{
-		if (!DynPrim)
-		{
-			continue;
-		}
-		if (!DynPrim->IsVisible())
-		{
-			continue;
-		}
-		FVector WorldMin, WorldMax;
-		DynPrim->GetWorldAABB(WorldMin, WorldMax);
-		bool bInFrustum = ViewFrustum.IsBoxInFrustum(FAABB(WorldMin, WorldMax));
-		if (!bInFrustum)
-		{
-			continue;
-		}
-		RenderCallback(DynPrim, nullptr);
-	}
-	
+	// Step 2: Material/Shader 기준으로 정렬 (상태 변경 최소화)
+	// SIMD 최적화된 Radix Sort 사용 (O(n) vs std::sort의 O(n log n))
+	RadixSortUtil::RadixSort64Direct(RenderCommands);
+
+	// Step 3: Batch 렌더링 (상태 변경 최소화)
+	RenderBatched(RenderCommands, InCurrentCamera, ViewMode);
 }
 
 /**
@@ -596,6 +524,59 @@ void URenderer::RenderPrimitiveIndexed(const FEditorPrimitive& InPrimitive, cons
 void URenderer::RenderEnd() const
 {
 	GetSwapChain()->Present(0, 0); // 1: VSync 활성화
+}
+
+/**
+ * @brief Batch 렌더링 (상태 변경 최소화)
+ * @param Commands 정렬된 렌더 커맨드 배열
+ * @param InCamera 현재 카메라
+ * @param ViewMode 뷰 모드 (Wireframe 등)
+ */
+void URenderer::RenderBatched(const TArray<FRenderCommand>& Commands, UCamera* InCamera, EViewModeIndex ViewMode)
+{
+	if (Commands.empty())
+		return;
+
+	uint64 CurrentSortKey = ~0ULL;  // 초기값: 항상 다른 값
+
+	for (const FRenderCommand& Cmd : Commands)
+	{
+		UPrimitiveComponent* Primitive = Cmd.Primitive;
+		if (!Primitive)
+			continue;
+
+		// SortKey가 변경되면 상태 업데이트 필요
+		bool bNeedStateChange = (Cmd.SortKey != CurrentSortKey);
+
+		// 렌더 상태 설정
+		FRenderState RenderState = Primitive->GetRenderState();
+		if (ViewMode == EViewModeIndex::VMI_Wireframe)
+		{
+			RenderState.CullMode = ECullMode::None;
+			RenderState.FillMode = EFillMode::WireFrame;
+		}
+
+		ID3D11RasterizerState* RasterizerState = GetRasterizerState(RenderState);
+
+		// Primitive 타입에 따라 렌더링
+		switch (Primitive->GetPrimitiveType())
+		{
+		case EPrimitiveType::StaticMesh:
+		{
+			UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(Primitive);
+			if (MeshComp)
+			{
+				RenderStaticMesh(MeshComp, RasterizerState);
+			}
+			break;
+		}
+		default:
+			RenderPrimitiveDefault(Primitive, RasterizerState);
+			break;
+		}
+
+		CurrentSortKey = Cmd.SortKey;
+	}
 }
 
 void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState)
