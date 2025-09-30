@@ -18,6 +18,8 @@ public:
 	void SetParentAttachment(USceneComponent* SceneComponent);
 	void RemoveChild(USceneComponent* ChildDeleted);
 
+	const TArray<USceneComponent*>& GetAttachChildren() const { return Children; }
+
 	void MarkAsDirty();
 
 	void SetRelativeLocation(const FVector& Location);
