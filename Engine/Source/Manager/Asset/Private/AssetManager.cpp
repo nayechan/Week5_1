@@ -47,23 +47,23 @@ void UAssetManager::Initialize()
 	VertexBuffers.emplace(EPrimitiveType::Cube, Renderer.CreateVertexBuffer(
 		VerticesCube.data(), static_cast<int>(VerticesCube.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Sphere, Renderer.CreateVertexBuffer(
-		VerticesSphere.data(), static_cast<int>(VerticesSphere.size() * sizeof(FNormalVertex))));
+		VerticesSphere.data(), static_cast<int>(VerticesSphere.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Triangle, Renderer.CreateVertexBuffer(
-		VerticesTriangle.data(), static_cast<int>(VerticesTriangle.size() * sizeof(FNormalVertex))));
+		VerticesTriangle.data(), static_cast<int>(VerticesTriangle.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Square, Renderer.CreateVertexBuffer(
-		VerticesSquare.data(), static_cast<int>(VerticesSquare.size() * sizeof(FNormalVertex))));
+		VerticesSquare.data(), static_cast<int>(VerticesSquare.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Billboard, Renderer.CreateVertexBuffer(
-		VerticesBillboard.data(), static_cast<int>(VerticesBillboard.size() * sizeof(FNormalVertex))));
+		VerticesBillboard.data(), static_cast<int>(VerticesBillboard.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Torus, Renderer.CreateVertexBuffer(
-		VerticesTorus.data(), static_cast<int>(VerticesTorus.size() * sizeof(FNormalVertex))));
+		VerticesTorus.data(), static_cast<int>(VerticesTorus.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Arrow, Renderer.CreateVertexBuffer(
-		VerticesArrow.data(), static_cast<int>(VerticesArrow.size() * sizeof(FNormalVertex))));
+		VerticesArrow.data(), static_cast<int>(VerticesArrow.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::CubeArrow, Renderer.CreateVertexBuffer(
-		VerticesCubeArrow.data(), static_cast<int>(VerticesCubeArrow.size() * sizeof(FNormalVertex))));
+		VerticesCubeArrow.data(), static_cast<int>(VerticesCubeArrow.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Ring, Renderer.CreateVertexBuffer(
-		VerticesRing.data(), static_cast<int>(VerticesRing.size() * sizeof(FNormalVertex))));
+		VerticesRing.data(), static_cast<int>(VerticesRing.size()) * sizeof(FNormalVertex)));
 	VertexBuffers.emplace(EPrimitiveType::Line, Renderer.CreateVertexBuffer(
-		VerticesLine.data(), static_cast<int>(VerticesLine.size() * sizeof(FNormalVertex))));
+		VerticesLine.data(), static_cast<int>(VerticesLine.size()) * sizeof(FNormalVertex)));
 
 	NumVertices.emplace(EPrimitiveType::Cube, static_cast<uint32>(VerticesCube.size()));
 	NumVertices.emplace(EPrimitiveType::Sphere, static_cast<uint32>(VerticesSphere.size()));
@@ -366,17 +366,20 @@ uint32 UAssetManager::GetNumVertices(EPrimitiveType InType)
 
 TArray<uint32>* UAssetManager::GetIndexData(EPrimitiveType InType)
 {
-	return IndexDatas[InType];
+	auto it = IndexDatas.find(InType);
+	return (it != IndexDatas.end()) ? it->second : nullptr;
 }
 
 ID3D11Buffer* UAssetManager::GetIndexbuffer(EPrimitiveType InType)
 {
-	return IndexBuffers[InType];
+	auto it = IndexBuffers.find(InType);
+	return (it != IndexBuffers.end()) ? it->second : nullptr;
 }
 
 uint32 UAssetManager::GetNumIndices(EPrimitiveType InType)
 {
-	return NumIndices[InType];
+	auto it = NumIndices.find(InType);
+	return (it != NumIndices.end()) ? it->second : 0;
 }
 
 ID3D11VertexShader* UAssetManager::GetVertexShader(EShaderType Type)
@@ -396,12 +399,30 @@ ID3D11InputLayout* UAssetManager::GetIputLayout(EShaderType Type)
 
 const FAABB& UAssetManager::GetAABB(EPrimitiveType InType)
 {
-	return AABBs[InType];
+	auto it = AABBs.find(InType);
+	if (it != AABBs.end())
+	{
+		return it->second;
+	}
+
+	// Fallback: return a default AABB (will cause issues but better than crash)
+	static FAABB DefaultAABB(FVector(-1.0f, -1.0f, -1.0f), FVector(1.0f, 1.0f, 1.0f));
+	UE_LOG("AssetManager::GetAABB: Warning - AABB not found for primitive type %d, returning default", static_cast<int>(InType));
+	return DefaultAABB;
 }
 
 const FAABB& UAssetManager::GetStaticMeshAABB(FName InName)
 {
-	return StaticMeshAABBs[InName];
+	auto it = StaticMeshAABBs.find(InName);
+	if (it != StaticMeshAABBs.end())
+	{
+		return it->second;
+	}
+
+	// Fallback: return a default AABB
+	static FAABB DefaultAABB(FVector(-1.0f, -1.0f, -1.0f), FVector(1.0f, 1.0f, 1.0f));
+	UE_LOG("AssetManager::GetStaticMeshAABB: Warning - AABB not found for mesh %s, returning default", InName.ToString().c_str());
+	return DefaultAABB;
 }
 
 /**
