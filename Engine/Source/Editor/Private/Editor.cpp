@@ -14,7 +14,6 @@
 #include "Manager/Config/Public/ConfigManager.h"
 #include "Manager/Time/Public/TimeManager.h"
 #include "Component/Public/PrimitiveComponent.h"
-#include "Component/Public/BillBoardComponent.h"
 #include "Component/Public/TextRenderComponent.h"
 #include "Level/Public/Level.h"
 #include "Global/Quaternion.h"
