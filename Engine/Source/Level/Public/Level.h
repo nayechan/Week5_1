@@ -71,7 +71,6 @@ public:
 	}
 
 	void AddLevelPrimitiveComponent(AActor* Actor);
-	void AddActorToDynamic(AActor* Actor);
 
 	AActor* SpawnActorToLevel(UClass* InActorClass, const FName& InName = FName::GetNone());
 

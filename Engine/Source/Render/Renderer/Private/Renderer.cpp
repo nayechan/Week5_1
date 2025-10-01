@@ -310,7 +310,6 @@ void URenderer::Update()
 		// 5. 에디터를 렌더링합니다.
 		// PIE World인 경우 에디터 오버레이 렌더링 스킵 (그리드, 축, 기즈모 숨김)
 		bool bIsPIEViewport = ViewportClient.RenderTargetWorld && ViewportClient.RenderTargetWorld->IsPIEWorld();
-		UE_LOG("Renderer::Update: Viewport is PIE: %s", bIsPIEViewport ? "true" : "false");
 		if (!bIsPIEViewport)
 		{
 			// 에디터 모드에서만 그리드, 축, 기즈모 렌더링
@@ -361,16 +360,9 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		? InViewport.RenderTargetWorld
 		: UWorldManager::GetInstance().GetCurrentWorld().Get();
 
-	// 디버그: 어떤 월드를 렌더링하는지 확인
-	bool bIsPIEWorld = InViewport.RenderTargetWorld && InViewport.RenderTargetWorld->IsPIEWorld();
-	UE_LOG("Renderer::RenderLevel: Rendering World: %s (PIE: %s)", 
-	       TargetWorld ? TargetWorld->GetName().ToString().data() : "null",
-	       bIsPIEWorld ? "true" : "false");
-
 	// World 없으면 Early Return
 	if (!TargetWorld)
 	{
-		UE_LOG("Renderer::RenderLevel: No target world found, early return");
 		return;
 	}
 
@@ -422,21 +414,12 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	auto RenderCallback = [&renderedPrimitiveCount, &lodCounts, &InCurrentCamera, ViewMode, this](UPrimitiveComponent* primitive, const void* context) -> void
 	{
 		if (!primitive) {
-			UE_LOG("Renderer: Null primitive encountered, skipping render");
 			return;
 		}
 		if (!primitive->IsVisible())
 		{
-			UE_LOG("Renderer: Primitive %s (Owner: %s) not visible, skipping render", 
-			       primitive->GetName().ToString().data(),
-			       primitive->GetOwner() ? primitive->GetOwner()->GetName().ToString().data() : "null");
 			return;
 		}
-		
-		// 렌더링되는 액터 디버그 로그
-		UE_LOG("Renderer: Rendering primitive %s (Owner: %s)", 
-		       primitive->GetName().ToString().data(),
-		       primitive->GetOwner() ? primitive->GetOwner()->GetName().ToString().data() : "null");
 
 		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
 		static int lodFrameCounter = 0;
@@ -465,14 +448,11 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
-		case EPrimitiveType::StaticMesh:
-        {
-            UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-            if (MeshComponent)
-            {
-                UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-                if (MeshComponent)
-                {
+			case EPrimitiveType::StaticMesh:
+			{
+				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+				if (MeshComponent)
+				{
 					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
 					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
 
@@ -492,15 +472,14 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 						break;
 					}
 					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-                    if (LodIndex >= 0 && LodIndex < 3)
-                    {
-                        lodCounts[LodIndex]++;
-                    }
-                }
-            }
-			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-			break;
-        }
+					if (LodIndex >= 0 && LodIndex < 3)
+					{
+						lodCounts[LodIndex]++;
+					}
+				}
+				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+				break;
+			}
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -511,13 +490,10 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옵트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		UE_LOG("Renderer::RenderLevel: Querying static octree with %u total objects", totalStaticPrimitives);
 		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
-		UE_LOG("Renderer::RenderLevel: Rendered %u primitives from octree", renderedPrimitiveCount);
 	}
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
-	UE_LOG("Renderer::RenderLevel: Processing %zu dynamic primitives", DynamicPrimitives.size());
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
 		if (!DynPrim)
@@ -526,9 +502,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		}
 		if (!DynPrim->IsVisible())
 		{
-			UE_LOG("Renderer: Dynamic primitive %s (Owner: %s) not visible", 
-			       DynPrim->GetName().ToString().data(),
-			       DynPrim->GetOwner() ? DynPrim->GetOwner()->GetName().ToString().data() : "null");
 			continue;
 		}
 		FVector WorldMin, WorldMax;
@@ -536,15 +509,8 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		bool bInFrustum = ViewFrustum.IsBoxInFrustum(FAABB(WorldMin, WorldMax));
 		if (!bInFrustum)
 		{
-			UE_LOG("Renderer: Dynamic primitive %s (Owner: %s) outside frustum - AABB(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f)", 
-			       DynPrim->GetName().ToString().data(),
-			       DynPrim->GetOwner() ? DynPrim->GetOwner()->GetName().ToString().data() : "null",
-			       WorldMin.X, WorldMin.Y, WorldMin.Z, WorldMax.X, WorldMax.Y, WorldMax.Z);
 			continue;
 		}
-		UE_LOG("Renderer: Dynamic primitive %s (Owner: %s) passed frustum test", 
-		       DynPrim->GetName().ToString().data(),
-		       DynPrim->GetOwner() ? DynPrim->GetOwner()->GetName().ToString().data() : "null");
 		RenderCallback(DynPrim, nullptr);
 	}
 	

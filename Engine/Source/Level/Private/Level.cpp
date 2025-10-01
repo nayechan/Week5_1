@@ -138,7 +138,7 @@ void ULevel::Init()
 	for (AActor* Actor : Actors)
 	{
 		if (!Actor) continue;
-		
+
 		// LevelActors에 이미 있는 Actor는 스킵
 		bool bAlreadyProcessed = false;
 		for (const auto& LevelActor : LevelActors)
@@ -149,13 +149,22 @@ void ULevel::Init()
 				break;
 			}
 		}
-		
+
 		if (!bAlreadyProcessed)
 		{
 			ProcessActorForInit(Actor);
 		}
 	}
-	
+
+	// Initialize all world transforms after loading
+	for (auto& Actor : LevelActors)
+	{
+		if (Actor && Actor->GetRootComponent())
+		{
+			Actor->GetRootComponent()->UpdateWorldTransform();
+		}
+	}
+
 	UE_LOG("ULevel::Init: Final LevelPrimitiveComponents count: %zu", LevelPrimitiveComponents.size());
 }
 
@@ -163,6 +172,25 @@ void ULevel::Update()
 {
 	// Process Delayed Task
 	ProcessPendingDeletions();
+
+	// Update all actor transforms before ticking and rendering
+	// Only root components need to be updated - they will recursively update children
+	static int frameCount = 0;
+	int updateCount = 0;
+	for (auto& Actor : LevelActors)
+	{
+		if (Actor && Actor->GetRootComponent())
+		{
+			Actor->GetRootComponent()->UpdateWorldTransform();
+			updateCount++;
+		}
+	}
+
+	// Log every 60 frames to check performance
+	if (++frameCount % 60 == 0)
+	{
+		UE_LOG("Level::Update: Updated %d root transforms", updateCount);
+	}
 
 	for (auto& Actor : LevelActors)
 	{
@@ -227,6 +255,12 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 			if (auto PrimitiveComp = Cast<UPrimitiveComponent>(Comp))
 			{
 				LevelPrimitiveComponents.push_back(PrimitiveComp);
+
+				// 빌보드 컴포넌트가 아니면 DynamicPrimitives에도 추가 (렌더링용)
+				if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::BillBoard)
+				{
+					DynamicPrimitives.push_back(TObjectPtr(PrimitiveComp));
+				}
 			}
 		}
 
@@ -273,27 +307,6 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 	}
 }
 
-void ULevel::AddActorToDynamic(AActor* Actor)
-{
-	if (!Actor) return;
-
-	for (auto& Component : Actor->GetOwnedComponents())
-	{
-		if (Component->GetComponentType() >= EComponentType::Primitive)
-		{
-			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
-			if (!PrimitiveComponent) continue;
-
-			// 빌보드 컴포넌트는 추가하지 않음
-			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
-				continue;
-
-			// 런타임에 생성된 오브젝트는 DynamicPrimitives에 추가
-			// 나중에 필요시 MoveToDynamic/MoveToStatic으로 이동 가능
-			DynamicPrimitives.push_back(TObjectPtr(PrimitiveComponent));
-		}
-	}
-}
 
 void ULevel::SetSelectedActor(AActor* InActor)
 {
@@ -420,9 +433,6 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 {
 	if (!Actor) return;
 	
-	UE_LOG("ULevel::ProcessActorForInit: Processing actor %s with %zu components", 
-	       Actor->GetName().ToString().data(), Actor->GetOwnedComponents().size());
-	
 	for (auto& Component : Actor->GetOwnedComponents())
 	{
 		if (Component->GetComponentType() >= EComponentType::Primitive)
@@ -432,8 +442,6 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 			
 			// LevelPrimitiveComponents에 추가 (렌더링을 위해 필수!)
 			LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComponent));
-			UE_LOG("ULevel::ProcessActorForInit: Added component %s to LevelPrimitiveComponents", 
-			       Component->GetName().ToString().data());
 
 			// 빌보드 컴포넌트는 Octree에 삽입하지 않음
 			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
