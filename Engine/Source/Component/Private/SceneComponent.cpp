@@ -77,6 +77,11 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 	MarkAsDirty();
 }
 
+void USceneComponent::AddChild(USceneComponent* NewChild)
+{
+	Children.push_back(NewChild);
+}
+
 void USceneComponent::RemoveChild(USceneComponent* ChildDeleted)
 {
 	Children.erase(std::remove(Children.begin(), Children.end(), ChildDeleted), Children.end());

@@ -557,3 +557,15 @@ UObject* ULevel::Duplicate()
 	return NewLevel;
 }
 
+
+void ULevel::RegisterPrimitiveComponent(UPrimitiveComponent* NewPrimitive)
+{
+	if (!NewPrimitive) return;
+
+	// 빌보드 컴포넌트는 렌더링 목록에 직접 추가하지 않습니다.
+	if (NewPrimitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+		return;
+
+	// 런타임에 생성된 컴포넌트는 DynamicPrimitives 목록에 추가하며 렌더링되도록 합니다.
+	DynamicPrimitives.push_back(TObjectPtr(NewPrimitive));
+}
