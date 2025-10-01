@@ -2,6 +2,8 @@
 #include "Component/Public/SceneComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Manager/Asset/Public/AssetManager.h"
+#include "Manager/Level/Public/LevelManager.h"
+#include "Level/Public/Level.h"
 #include "Utility/Public/JsonSerializer.h"
 #include "Global/Matrix.h"
 #include "Global/Quaternion.h"
@@ -93,6 +95,17 @@ void USceneComponent::AddChild(USceneComponent* NewChild)
 	{
 		NewChild->MarkAsDirty();
 		NewChild->UpdateWorldTransform();
+
+		// CRITICAL: Register child PrimitiveComponents with the Level for rendering
+		if (UPrimitiveComponent* PrimitiveChild = Cast<UPrimitiveComponent>(NewChild))
+		{
+			// Get current level and register the component
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)
+			{
+				CurrentLevel->RegisterPrimitiveComponent(PrimitiveChild);
+			}
+		}
 	}
 }
 
@@ -121,12 +134,16 @@ void USceneComponent::SetRelativeLocation(const FVector& Location)
 {
 	RelativeLocation = Location;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetRelativeRotation(const FVector& Rotation)
 {
 	RelativeRotation = Rotation;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetRelativeScale3D(const FVector& Scale)
@@ -140,6 +157,8 @@ void USceneComponent::SetRelativeScale3D(const FVector& Scale)
 		ActualScale.Z = MinScale;
 	RelativeScale3D = ActualScale;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetUniformScale(bool bIsUniform)
