@@ -22,7 +22,12 @@ public:
 	// Getter
 	TObjectPtr<UWorld> GetCurrentWorld() const { return CurrentWorld; }
 	ULevel* GetCurrentLevel() const;
+	
+	// PIE Duplication Guard
+	bool IsDuplicatingForPIE() const { return bIsDuplicatingForPIE; }
+	void SetDuplicatingForPIE(bool bInDuplicating) { bIsDuplicatingForPIE = bInDuplicating; }
 
 private:
 	TObjectPtr<UWorld> CurrentWorld;
+	bool bIsDuplicatingForPIE = false;
 };

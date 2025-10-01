@@ -4,6 +4,7 @@
 #include "Actor/Public/Actor.h"
 #include "Component/Public/ActorComponent.h"
 #include "Factory/Public/NewObject.h"
+#include "Manager/World/Public/WorldManager.h"
 
 IMPLEMENT_CLASS(UWorld, UObject)
 
@@ -73,6 +74,10 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
 	}
 
 	UE_LOG("DuplicateWorldForPIE: Starting duplication of %s", EditorWorld->GetName().ToString().data());
+	
+	// PIE 복제 중 플래그 설정 (AddChild 에서 에디터 레벨 등록 방지)
+	UWorldManager::GetInstance().SetDuplicatingForPIE(true);
+	UE_LOG("DuplicateWorldForPIE: *** PIE DUPLICATION FLAG SET - Editor level registration blocked ***");
 
 	// 새로운 PIE 월드 생성
 	UWorld* PIEWorld = NewObject<UWorld>(nullptr, UWorld::StaticClass(), FName("PIEWorld"));
@@ -164,6 +169,10 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
 			UE_LOG("DuplicateWorldForPIE: Initializing PIE Level...");
 			PIELevel->Init();
 			UE_LOG("DuplicateWorldForPIE: PIE Level initialized successfully");
+			
+			// PIE 복제 완료 - 플래그 해제
+			UWorldManager::GetInstance().SetDuplicatingForPIE(false);
+			UE_LOG("DuplicateWorldForPIE: *** PIE DUPLICATION FLAG CLEARED - Normal level registration resumed ***");
 		}
 		else
 		{
