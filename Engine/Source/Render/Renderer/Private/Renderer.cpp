@@ -27,6 +27,7 @@
 #include "Render/Culling/Public/OcclusionCuller.h"
 #include <immintrin.h>
 #include "Component/Public/TextRenderComponent.h"
+#include "Component/Public/BillboardComponent.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
 
@@ -500,6 +501,68 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
 			break;
         }
+		case EPrimitiveType::Billboard:
+		{
+			UBillboardComponent* BillboardComp = Cast<UBillboardComponent>(primitive);
+			if (BillboardComp)
+			{
+				// Make the component face camera (already in your code)
+				BillboardComp->UpdateFacingCamera(InCurrentCamera, false);
+
+				// Get sprite texture
+				UTexture* SpriteTex = BillboardComp->GetSprite();
+				if (!SpriteTex) break;
+
+				const FTextureRenderProxy* Proxy = SpriteTex->GetRenderProxy();
+				if (!Proxy) break;
+
+				// Prepare pipeline for textured quad
+				FPipelineInfo PipelineInfo = {
+					TextureInputLayout,
+					TextureVertexShader,
+					LoadedRasterizerState,
+					DefaultDepthStencilState,
+					TexturePixelShader,
+					nullptr,
+				};
+				Pipeline->UpdatePipeline(PipelineInfo);
+
+				// World matrix: use component world transform (respects attachment)
+				const FMatrix WorldMatrix = BillboardComp->GetWorldTransformMatrix();
+				Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
+				UpdateConstant(WorldMatrix); // sets b0.world for TextureShader.hlsl
+
+				// Bind texture and sampler (TextureShader expects DiffuseTexture at t0)
+				Pipeline->SetTexture(0, false, Proxy->GetSRV());
+				Pipeline->SetSamplerState(0, false, Proxy->GetSampler());
+
+				// Create a unit quad centered at origin (two triangles). Local plane Z=0.
+				// Vertex format: Position(float3), Normal(float3), Color(float4), TexCoord(float2)
+				FNormalVertex QuadVerts[6] = {
+					// tri 1
+					{ { -0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 1.0f} },
+					{ {  0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 1.0f} },
+					{ {  0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 0.0f} },
+					// tri 2
+					{ {  0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 0.0f} },
+					{ { -0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 0.0f} },
+					{ { -0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 1.0f} },
+				};
+
+				// Create a transient vertex buffer for the quad
+				ID3D11Buffer* VB = CreateVertexBuffer(QuadVerts, sizeof(QuadVerts));
+				if (VB)
+				{
+					// Bind and draw (triangle list, 6 verts)
+					Pipeline->SetVertexBuffer(VB, sizeof(FNormalVertex));
+					Pipeline->Draw(6, 0);
+
+					// cleanup transient buffer
+					ReleaseVertexBuffer(VB);
+				}
+			}
+			break;
+		}
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -511,7 +574,7 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옵트리에서 람다 기반 렌더링 수행 (Static Primitives)
 		UE_LOG("Renderer::RenderLevel: Querying static octree with %u total objects", totalStaticPrimitives);
-		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
+		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, nullptr, &Context, RenderCallback, nullptr);
 		UE_LOG("Renderer::RenderLevel: Rendered %u primitives from octree", renderedPrimitiveCount);
 	}
 	// Dynamic Primitives 처리

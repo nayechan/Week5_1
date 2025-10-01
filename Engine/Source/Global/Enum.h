@@ -137,7 +137,7 @@ enum class EPrimitiveType : uint8
 	CubeArrow,
 	Ring,
 	Line,
-	BillBoard,
+	Billboard,
 	TextRender,
 
 	End = 0xFF

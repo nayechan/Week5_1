@@ -33,7 +33,7 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 
 	for (UPrimitiveComponent* Primitive : Candidate)
 	{
-		if (Primitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+		if (Primitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 		{
 			continue;
 		}
@@ -56,7 +56,7 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 
 bool UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const FRay& WorldRay, UPrimitiveComponent* Primitive, float* OutDistance)
 {
-	if (!Primitive || Primitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+	if (!Primitive || Primitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 	{
 		if (OutDistance)
 		{

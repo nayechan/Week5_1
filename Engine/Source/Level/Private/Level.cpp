@@ -257,11 +257,11 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 			// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
 			if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
 			{
-				if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::BillBoard)
+				if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::Billboard)
 				{
 					LevelPrimitiveComponents.push_back(PrimitiveComponent);
 				}
-				else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard && (ShowFlags & EEngineShowFlags::SF_BillboardText) && (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
+				else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard && (ShowFlags & EEngineShowFlags::SF_BillboardText) && (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
 				{
 					//TObjectPtr<UBillBoardComponent> BillBoard = Cast<UBillBoardComponent>(PrimitiveComponent);
 					//BillBoard->UpdateRotationMatrix();
@@ -284,8 +284,8 @@ void ULevel::AddActorToDynamic(AActor* Actor)
 			if (!PrimitiveComponent) continue;
 
 			// 빌보드 컴포넌트는 추가하지 않음
-			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
-				continue;
+			/*if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard)
+				continue;*/
 
 			// 런타임에 생성된 오브젝트는 DynamicPrimitives에 추가
 			// 나중에 필요시 MoveToDynamic/MoveToStatic으로 이동 가능
@@ -431,7 +431,7 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 			       Component->GetName().ToString().data());
 
 			// 빌보드 컴포넌트는 Octree에 삽입하지 않음
-			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
+			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard)
 				continue;
 
 			FVector Min, Max;

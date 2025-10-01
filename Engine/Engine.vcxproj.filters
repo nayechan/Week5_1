@@ -389,11 +389,20 @@
     <ClCompile Include="Source\Utility\Private\StaticMeshSerializer.cpp">
       <Filter>Source\Core\Private</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Component\Private\BillboardControllerComponent.cpp">
-      <Filter>Source\Component\Private</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Component\Private\TextRenderComponent.cpp">
       <Filter>Source\Component\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Private\World.cpp" />
+    <ClCompile Include="Source\Manager\World\Private\WorldManager.cpp" />
+    <ClCompile Include="Source\Manager\PIE\Private\PIEManager.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\CullingManager.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\FrustumCuller.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\LODManager.cpp" />
+    <ClCompile Include="Source\Render\Culling\Private\OcclusionCuller.cpp" />
+    <ClCompile Include="Source\Render\UI\Widget\Private\PIEControlWidget.cpp" />
+    <ClCompile Include="Source\Render\UI\Window\Private\PIEControlWindow.cpp" />
+    <ClCompile Include="Source\Actor\Private\BillboardActor.cpp">
+      <Filter>Source\Actor\Private</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -821,11 +830,20 @@
     <ClInclude Include="Source\Utility\Public\StaticMeshSerializer.h">
       <Filter>Source\Core\Public</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Component\Public\BillboardControllerComponent.h">
-      <Filter>Source\Component\Public</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Component\Public\TextRenderComponent.h">
       <Filter>Source\Component\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Public\World.h" />
+    <ClInclude Include="Source\Manager\World\Public\WorldManager.h" />
+    <ClInclude Include="Source\Manager\PIE\Public\PIEManager.h" />
+    <ClInclude Include="Source\Render\Culling\Public\CullingManager.h" />
+    <ClInclude Include="Source\Render\Culling\Public\FrustumCuller.h" />
+    <ClInclude Include="Source\Render\Culling\Public\LODManager.h" />
+    <ClInclude Include="Source\Render\Culling\Public\OcclusionCuller.h" />
+    <ClInclude Include="Source\Render\UI\Widget\Public\PIEControlWidget.h" />
+    <ClInclude Include="Source\Render\UI\Window\Public\PIEControlWindow.h" />
+    <ClInclude Include="Source\Actor\Public\BillboardActor.h">
+      <Filter>Source\Actor\Public</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1099,5 +1117,8 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Engine.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Source\Render\Culling\Private\OcclusionCullerImpl.inl" />
   </ItemGroup>
 </Project>
