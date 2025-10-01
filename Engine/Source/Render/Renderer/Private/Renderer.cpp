@@ -644,9 +644,9 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 	// Constant buffer & transform
 	Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
 	UpdateConstant(
-		InMeshComp->GetRelativeLocation(),
-		InMeshComp->GetRelativeRotation(),
-		InMeshComp->GetRelativeScale3D()
+		InMeshComp->GetWorldLocation(),
+		InMeshComp->GetWorldRotation(),
+		InMeshComp->GetWorldScale3D()
 	);
 
 	Pipeline->SetVertexBuffer(vb, sizeof(FNormalVertex));
@@ -744,9 +744,9 @@ void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3
 	// Update pipeline buffers
 	Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
 	UpdateConstant(
-		InPrimitiveComp->GetRelativeLocation(),
-		InPrimitiveComp->GetRelativeRotation(),
-		InPrimitiveComp->GetRelativeScale3D()
+		InPrimitiveComp->GetWorldLocation(),
+		InPrimitiveComp->GetWorldRotation(),
+		InPrimitiveComp->GetWorldScale3D()
 	);
 	Pipeline->SetConstantBuffer(2, true, ConstantBufferColor);
 	UpdateConstant(InPrimitiveComp->GetColor());

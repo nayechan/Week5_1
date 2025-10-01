@@ -3,6 +3,8 @@
 #include "Component/Public/PrimitiveComponent.h"
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Utility/Public/JsonSerializer.h"
+#include "Global/Matrix.h"
+#include "Global/Quaternion.h"
 
 #include <json.hpp>
 
@@ -152,6 +154,21 @@ const FMatrix& USceneComponent::GetWorldTransform() const
 const FMatrix& USceneComponent::GetWorldTransformInverse() const
 {
 	return WorldTransformInverse;
+}
+
+FVector USceneComponent::GetWorldLocation() const
+{
+	return WorldTransform.GetLocation();
+}
+
+FVector USceneComponent::GetWorldRotation() const
+{
+	return FVector::GetDegreeToRadian(FQuaternion::FromMatrix(WorldTransform).ToEuler());
+}
+
+FVector USceneComponent::GetWorldScale3D() const
+{
+	return WorldTransform.GetScale();
 }
 
 void USceneComponent::UpdateWorldTransform()
