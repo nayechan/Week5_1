@@ -77,6 +77,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
         if (PIELevel)
         {
             // 에디터 레벨의 모든 액터들을 PIE 레벨로 복제
+            // GetActors()는 const reference이므로 SpawnActorToLevel 사용
             for (AActor* EditorActor : EditorLevel->GetActors())
             {
                 if (EditorActor)
@@ -85,12 +86,12 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
                     AActor* PIEActor = Cast<AActor>(EditorActor->Duplicate());
                     if (PIEActor)
                     {
-                        // PIE 레벨의 Actors 배열에 추가
-                        PIELevel->GetActors().push_back(PIEActor);
+                        // SpawnActorToLevel은 BeginPlay를 호출하므로, 직접 추가
+                        PIELevel->AddActorDirect(PIEActor);
                     }
                 }
             }
-            
+
             PIEWorld->SetLevel(PIELevel);
         }
     }
@@ -102,6 +103,9 @@ void UWorld::InitializeActorsForPlay()
 {
     if (!Level)
         return;
+
+    // Level 초기화 (Octree 구축 등)
+    Level->Init();
 
     // 모든 액터의 BeginPlay 호출
     for (AActor* Actor : Level->GetActors())

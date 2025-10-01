@@ -2,6 +2,7 @@
 #include "Manager/PIE/Public/PIEManager.h"
 #include "Manager/World/Public/WorldManager.h"
 #include "Core/Public/World.h"
+#include "Level/Public/Level.h"
 #include "Editor/Public/ViewportClient.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(UPIEManager)
@@ -39,6 +40,7 @@ void UPIEManager::StartPIE(FViewportClient* InPIEViewport)
 
 	if (PIEWorld)
 	{
+		// World가 Level 초기화 및 Actor BeginPlay 모두 처리
 		PIEWorld->InitializeActorsForPlay();
 		PIEViewport = InPIEViewport;
 

@@ -53,12 +53,9 @@ public:
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
-	// PIE/World에서 요구하는 인터페이스
-	const TArray<AActor*>& GetActors() const { return Actors; }
-	TArray<AActor*>& GetActors() { return Actors; }
-
-	// 기존 인터페이스 유지 (호환성)
-	const TArray<TObjectPtr<AActor>>& GetLevelActors() const { return LevelActors; }
+	// Actor 관리 (외부 인터페이스 - 소유권 없음)
+	const TArray<AActor*>& GetActors() const { return ActorsPtrCache; }
+	TArray<AActor*>& GetActors() { return ActorsPtrCache; }
 
 	const TArray<TObjectPtr<UPrimitiveComponent>>& GetLevelPrimitiveComponents() const
 	{
@@ -69,6 +66,9 @@ public:
 	void AddActorToDynamic(AActor* Actor);
 
 	AActor* SpawnActorToLevel(UClass* InActorClass, const FName& InName = FName::GetNone());
+
+	// World 복제 시 사용 (BeginPlay 호출하지 않음)
+	void AddActorDirect(AActor* InActor);
 
 	bool DestroyActor(AActor* InActor);
 	void MarkActorForDeletion(AActor* InActor);
@@ -86,15 +86,19 @@ public:
 	void MoveToDynamic(UPrimitiveComponent* InPrim);
 
 private:
-	// PIE/World에서 사용하는 Actors 배열
-	TArray<AActor*> Actors;
+	// 액터 저장소 (소유권 있음)
+	TArray<TObjectPtr<AActor>> Actors;
 
-	// 기존 인터페이스 유지
-	TArray<TObjectPtr<AActor>> LevelActors;
+	// 외부 인터페이스용 캐시 (소유권 없음)
+	mutable TArray<AActor*> ActorsPtrCache;
+
 	TArray<TObjectPtr<UPrimitiveComponent>> LevelPrimitiveComponents;	// 액터의 하위 컴포넌트는 액터에서 관리&해제됨
 
 	// 지연 삭제를 위한 리스트
 	TArray<AActor*> ActorsToDelete;
+
+	// 캐시 동기화
+	void SyncActorsPtrCache() const;
 
 	TObjectPtr<AActor> SelectedActor = nullptr;
 

@@ -96,8 +96,9 @@ void ULevel::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 		InOutHandle["PerspectiveCamera"] = UConfigManager::GetInstance().GetCameraSettingsAsJson();
 
 		JSON PrimitivesJson = json::Object();
-		for (const TObjectPtr<AActor>& Actor : LevelActors)
+		for (const auto& Actor : Actors)
 		{
+			if (!Actor) continue;
 			JSON PrimitiveJson;
 			PrimitiveJson["Type"] = FActorTypeMapper::ActorToType(Actor->GetClass());;
 			Actor->Serialize(bInIsLoading, PrimitiveJson);
@@ -114,18 +115,11 @@ void ULevel::Init()
 	FAABB WorldBounds(FVector(-10000, -10000, -10000), FVector(10000, 10000, 10000));
 	StaticOctree.Initialize(WorldBounds);
 
-	// LevelActors를 Actors 배열과 동기화 (PIE 지원을 위함)
-	Actors.clear();
-	for (const auto& Actor : LevelActors)
-	{
-		if (Actor)
-		{
-			Actors.push_back(Actor.Get());
-		}
-	}
+	// 외부 인터페이스용 캐시 동기화
+	SyncActorsPtrCache();
 
 	// 레벨 안의 모든 액터 → PrimitiveComponent 순회해서 Octree에 삽입
-	for (auto& Actor : LevelActors)
+	for (const auto& Actor : Actors)
 	{
 		if (!Actor) continue;
 		for (auto& Component : Actor->GetOwnedComponents())
@@ -149,12 +143,22 @@ void ULevel::Init()
 	}
 }
 
+void ULevel::SyncActorsPtrCache() const
+{
+	ActorsPtrCache.clear();
+	ActorsPtrCache.reserve(Actors.size());
+	for (const auto& Actor : Actors)
+	{
+		ActorsPtrCache.push_back(Actor.Get());
+	}
+}
+
 void ULevel::Update()
 {
 	// Process Delayed Task
 	ProcessPendingDeletions();
 
-	for (auto& Actor : LevelActors)
+	for (const auto& Actor : Actors)
 	{
 		if (Actor)
 		{
@@ -174,16 +178,16 @@ void ULevel::Cleanup()
 	// 1. 지연 삭제 목록에 남아있는 액터들을 먼저 처리합니다.
 	ProcessPendingDeletions();
 
-	// 2. LevelActors 배열에 남아있는 모든 액터의 메모리를 해제합니다.
-	for (const auto& Actor : LevelActors)
+	// 2. Actors 배열에 남아있는 모든 액터의 메모리를 해제합니다.
+	for (const auto& Actor : Actors)
 	{
-		delete Actor;
+		delete Actor.Get();
 	}
-	LevelActors.clear();
+	Actors.clear();
+	ActorsPtrCache.clear();
 
-	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컸테이너들을 비웁니다.
+	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컨테이너들을 비웁니다.
 	ActorsToDelete.clear();
-	Actors.clear(); // PIE 지원을 위한 Actors 배열도 정리
 	LevelPrimitiveComponents.clear();
 
 	// 4. 선택된 액터 참조를 안전하게 해제합니다.
@@ -207,9 +211,8 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 		{
 			NewActor->SetName(InName);
 		}
-		// LevelActors와 Actors 모두 업데이트 (PIE 지원)
-		LevelActors.push_back(TObjectPtr(NewActor));
-		Actors.push_back(NewActor);
+		Actors.push_back(TObjectPtr(NewActor));
+		ActorsPtrCache.push_back(NewActor);  // 캐시에도 추가
 		NewActor->BeginPlay();
 
 		for (const auto& Comp : NewActor->GetOwnedComponents())
@@ -224,6 +227,14 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 	}
 
 	return nullptr;
+}
+
+void ULevel::AddActorDirect(AActor* InActor)
+{
+	if (!InActor) return;
+
+	Actors.push_back(TObjectPtr(InActor));
+	ActorsPtrCache.push_back(InActor);
 }
 
 void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
@@ -302,12 +313,22 @@ bool ULevel::DestroyActor(AActor* InActor)
 		return false;
 	}
 
-	// LevelActors 리스트에서 제거
-	for (auto Iterator = LevelActors.begin(); Iterator != LevelActors.end(); ++Iterator)
+	// Actors 리스트에서 제거
+	for (auto Iterator = Actors.begin(); Iterator != Actors.end(); ++Iterator)
 	{
-		if (*Iterator == InActor)
+		if (Iterator->Get() == InActor)
 		{
-			LevelActors.erase(Iterator);
+			Actors.erase(Iterator);
+			break;
+		}
+	}
+
+	// 캐시에서도 제거
+	for (auto It = ActorsPtrCache.begin(); It != ActorsPtrCache.end(); ++It)
+	{
+		if (*It == InActor)
+		{
+			ActorsPtrCache.erase(It);
 			break;
 		}
 	}

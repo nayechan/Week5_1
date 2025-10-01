@@ -51,18 +51,18 @@ private:
 	static constexpr float FOCUS_DISTANCE = 10.0f;
 
 	// Camera movement
-	void RenderActorInfo(TObjectPtr<AActor> InActor, int32 InIndex);
-	void SelectActor(TObjectPtr<AActor> InActor, bool bInFocusCamera = false);
-	void FocusOnActor(TObjectPtr<AActor> InActor);
+	void RenderActorInfo(AActor* InActor, int32 InIndex);
+	void SelectActor(AActor* InActor, bool bInFocusCamera = false);
+	void FocusOnActor(AActor* InActor);
 	void UpdateCameraAnimation();
 
 	// 검색 기능
 	void RenderSearchBar();
-	void UpdateFilteredActors(const TArray<TObjectPtr<AActor>>& InLevelActors);
+	void UpdateFilteredActors(const TArray<AActor*>& InActors);
 	static bool IsActorMatchingSearch(const FString& InActorName, const FString& InSearchTerm);
 
 	// 이름 변경 기능
-	void StartRenaming(TObjectPtr<AActor> InActor);
+	void StartRenaming(AActor* InActor);
 	void FinishRenaming(bool bInConfirm);
 	bool IsRenaming() const { return RenamingActor != nullptr; }
 };

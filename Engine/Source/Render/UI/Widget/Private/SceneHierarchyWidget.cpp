@@ -49,9 +49,9 @@ void USceneHierarchyWidget::RenderWidget()
 	// 검색창 렌더링
 	RenderSearchBar();
 
-	const TArray<TObjectPtr<AActor>>& LevelActors = CurrentLevel->GetLevelActors();
+	const TArray<AActor*>& Actors = CurrentLevel->GetActors();
 
-	if (LevelActors.empty())
+	if (Actors.empty())
 	{
 		ImGui::TextUnformatted("No Actors in Level");
 		return;
@@ -61,18 +61,18 @@ void USceneHierarchyWidget::RenderWidget()
 	if (bNeedsFilterUpdate)
 	{
 		UE_LOG("SceneHierarchy: 필터 업데이트 실행 중...");
-		UpdateFilteredActors(LevelActors);
+		UpdateFilteredActors(Actors);
 		bNeedsFilterUpdate = false;
 	}
 
 	// Actor 개수 표시
 	if (SearchFilter.empty())
 	{
-		ImGui::Text("Total Actors: %zu", LevelActors.size());
+		ImGui::Text("Total Actors: %zu", Actors.size());
 	}
 	else
 	{
-		ImGui::Text("%d / %zu actors", static_cast<int32>(FilteredIndices.size()), LevelActors.size());
+		ImGui::Text("%d / %zu actors", static_cast<int32>(FilteredIndices.size()), Actors.size());
 	}
 	ImGui::Spacing();
 
@@ -82,11 +82,11 @@ void USceneHierarchyWidget::RenderWidget()
 		if (SearchFilter.empty())
 		{
 			// 검색어가 없으면 모든 Actor 표시
-			for (int32 i = 0; i < static_cast<int32>(LevelActors.size()); ++i)
+			for (int32 i = 0; i < static_cast<int32>(Actors.size()); ++i)
 			{
-				if (LevelActors[i])
+				if (Actors[i])
 				{
-					RenderActorInfo(LevelActors[i], i);
+					RenderActorInfo(Actors[i], i);
 				}
 			}
 		}
@@ -95,9 +95,9 @@ void USceneHierarchyWidget::RenderWidget()
 			// 필터링된 Actor들만 표시
 			for (int32 FilteredIndex : FilteredIndices)
 			{
-				if (FilteredIndex < LevelActors.size() && LevelActors[FilteredIndex])
+				if (FilteredIndex < Actors.size() && Actors[FilteredIndex])
 				{
-					RenderActorInfo(LevelActors[FilteredIndex], FilteredIndex);
+					RenderActorInfo(Actors[FilteredIndex], FilteredIndex);
 				}
 			}
 
@@ -116,7 +116,7 @@ void USceneHierarchyWidget::RenderWidget()
  * @param InActor 렌더링할 Actor
  * @param InIndex Actor의 인덱스
  */
-void USceneHierarchyWidget::RenderActorInfo(TObjectPtr<AActor> InActor, int32 InIndex)
+void USceneHierarchyWidget::RenderActorInfo(AActor* InActor, int32 InIndex)
 {
 	// TODO(KHJ): 컴포넌트 정보 탐색을 위한 트리 노드를 작업 후 남겨두었음, 필요하다면 사용할 것
 
@@ -274,7 +274,7 @@ void USceneHierarchyWidget::RenderActorInfo(TObjectPtr<AActor> InActor, int32 In
  * @param InActor 선택할 Actor
  * @param bInFocusCamera 카메라 포커싱 여부 (더블 클릭 시 true)
  */
-void USceneHierarchyWidget::SelectActor(TObjectPtr<AActor> InActor, bool bInFocusCamera)
+void USceneHierarchyWidget::SelectActor(AActor* InActor, bool bInFocusCamera)
 {
 	TObjectPtr<ULevel> CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
 	if (CurrentLevel)
@@ -295,7 +295,7 @@ void USceneHierarchyWidget::SelectActor(TObjectPtr<AActor> InActor, bool bInFocu
  * @brief 카메라를 특정 Actor에 포커스하는 함수
  * @param InActor 포커스할 Actor
  */
-void USceneHierarchyWidget::FocusOnActor(TObjectPtr<AActor> InActor)
+void USceneHierarchyWidget::FocusOnActor(AActor* InActor)
 {
 	if (!InActor) { return; }
 
@@ -456,7 +456,7 @@ void USceneHierarchyWidget::RenderSearchBar()
  * @brief 필터링된 Actor 인덱스 리스트를 업데이트하는 함수
  * @param InLevelActors 레벨의 모든 Actor 리스트
  */
-void USceneHierarchyWidget::UpdateFilteredActors(const TArray<TObjectPtr<AActor>>& InLevelActors)
+void USceneHierarchyWidget::UpdateFilteredActors(const TArray<AActor*>& InLevelActors)
 {
 	FilteredIndices.clear();
 
@@ -515,7 +515,7 @@ bool USceneHierarchyWidget::IsActorMatchingSearch(const FString& InActorName, co
  * @brief 이름 변경 모드를 시작하는 함수
  * @param InActor 이름을 변경할 Actor
  */
-void USceneHierarchyWidget::StartRenaming(TObjectPtr<AActor> InActor)
+void USceneHierarchyWidget::StartRenaming(AActor* InActor)
 {
 	if (!InActor)
 	{
