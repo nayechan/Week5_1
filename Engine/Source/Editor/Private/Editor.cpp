@@ -78,9 +78,24 @@ void UEditor::Update()
 {
 	URenderer& Renderer = URenderer::GetInstance();
 	FViewport* Viewport = Renderer.GetViewportClient();
+	UInputManager& InputManager = UInputManager::GetInstance();
 
 	// 1. 마우스 위치를 기반으로 활성 뷰포트를 결정합니다.
-	Viewport->UpdateActiveViewportClient(UInputManager::GetInstance().GetMousePosition());
+	// Active Viewport는 클릭할 때만 변경 (마우스 호버만으로는 변경 안 됨)
+	bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+	bool bMouseClicked = InputManager.IsKeyPressed(EKeyInput::MouseLeft) || InputManager.IsKeyPressed(EKeyInput::MouseRight);
+	if (!bMouseOverImGui && bMouseClicked)
+	{
+		FViewportClient* PreviousActive = Viewport->GetActiveViewportClient();
+		Viewport->UpdateActiveViewportClient(UInputManager::GetInstance().GetMousePosition());
+		FViewportClient* CurrentActive = Viewport->GetActiveViewportClient();
+
+		// Active viewport가 변경되었을 때만 로그
+		if (PreviousActive != CurrentActive && CurrentActive != nullptr)
+		{
+			UE_LOG("Editor: Active Viewport Changed (Address: %p)", CurrentActive);
+		}
+	}
 
 	// 2. 활성 뷰포트의 카메라의 제어만 업데이트합니다.
 	if (UCamera* ActiveCamera = Viewport->GetActiveCamera())
@@ -306,7 +321,8 @@ void UEditor::UpdateLayout()
 		}
 
 		// 2. 스플리터 위에 커서가 있으며 클릭을 한다면, 드래그 상태로 활성화합니다.
-		if (UInputManager::GetInstance().IsKeyPressed(EKeyInput::MouseLeft) && bIsHoveredOnSplitter)
+		bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+		if (!bMouseOverImGui && UInputManager::GetInstance().IsKeyPressed(EKeyInput::MouseLeft) && bIsHoveredOnSplitter)
 		{
 			// 호버 상태에 따라 드래그할 스플리터를 결정합니다.
 			if (LeftSplitter.IsHovered(MousePosition)) { DraggedSplitter = &LeftSplitter; }				// 좌상, 좌하
@@ -537,7 +553,10 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			Gizmo.SetGizmoDirection(EGizmoDirection::None);
 		}
 
-		if (!ImGui::GetIO().WantCaptureMouse && InputManager.IsKeyPressed(EKeyInput::MouseLeft))
+		// ImGui 호버 체크: 마우스가 ImGui 창 위에 있으면 picking 하지 않음
+		bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+
+		if (!bMouseOverImGui && InputManager.IsKeyPressed(EKeyInput::MouseLeft))
 		{
 			// 퍼포먼스 측정용 카운터 시작 (BVH 탐색을 수행하는 경우에만 측정)
 			FScopeCycleCounter PickCounter(GetPickingStatId());
@@ -574,7 +593,8 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 		else
 		{
 			PreviousGizmoDirection = Gizmo.GetGizmoDirection();
-			if (InputManager.IsKeyPressed(EKeyInput::MouseLeft))
+			bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+			if (!bMouseOverImGui && InputManager.IsKeyPressed(EKeyInput::MouseLeft))
 			{
 				// 이미 위에서 드래그를 시작했다면 다시 호출하지 않음
 				if (!bGizmoDragStarted)

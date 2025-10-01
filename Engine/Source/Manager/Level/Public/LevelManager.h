@@ -28,9 +28,6 @@ public:
 
 	// PIE System (TODO: Move to WorldManager when World structure is ready)
 	TUniquePtr<ULevel> CloneLevelForPIE();
-	void StartPIE();
-	void StopPIE();
-	ULevel* GetPIELevel() const { return PIELevel.get(); }
 
 	TObjectPtr<UEditor> GetEditor() const { return Editor; }
 
@@ -40,5 +37,4 @@ private:
 private:
 	TObjectPtr<ULevel> CurrentLevel;
 	TObjectPtr<UEditor> Editor;
-	TUniquePtr<ULevel> PIELevel = nullptr;  // PIE Level (LevelManager가 소유)
 };

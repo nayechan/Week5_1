@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "Render/UI/Widget/Public/PIEControlWidget.h"
-#include "Manager/Level/Public/LevelManager.h"
+#include "Manager/PIE/Public/PIEManager.h"
 #include "Render/Renderer/Public/Renderer.h"
 #include "Editor/Public/Viewport.h"
 
@@ -16,60 +16,49 @@ void UPIEControlWidget::Update()
 
 void UPIEControlWidget::RenderWidget()
 {
+	UPIEManager& PIEManager = UPIEManager::GetInstance();
+
 	// Start 버튼
 	if (ImGui::Button("Start"))
 	{
-		ULevelManager& LevelManager = ULevelManager::GetInstance();
 		FViewport* Viewport = URenderer::GetInstance().GetViewportClient();
-
 		if (Viewport)
 		{
 			FViewportClient* ActiveViewport = Viewport->GetActiveViewportClient();
 			if (ActiveViewport)
 			{
-				// PIE 시작
-				LevelManager.StartPIE();
-
-				// Active Viewport에 PIE Level 할당
-				if (LevelManager.GetPIELevel())
-				{
-					ActiveViewport->RenderTargetLevel = LevelManager.GetPIELevel();
-					UE_LOG("PIEControlWidget: PIE Started on Active Viewport");
-				}
+				UE_LOG("PIEControlWidget: Starting PIE on Active Viewport (Address: %p)", ActiveViewport);
+				PIEManager.StartPIE(ActiveViewport);
 			}
 			else
 			{
-				UE_LOG("PIEControlWidget: No active viewport");
+				UE_LOG("PIEControlWidget: No active viewport - using first viewport");
+				// Active viewport가 없으면 첫 번째 viewport 사용
+				auto& viewports = Viewport->GetViewports();
+				if (!viewports.empty())
+				{
+					PIEManager.StartPIE(&viewports[0]);
+				}
 			}
 		}
 	}
 
 	ImGui::SameLine();
 
-	// Pause 버튼 (TODO: 구현 예정)
-	ImGui::Button("Pause");
+	// Pause/Resume 버튼
+	bool bIsPaused = PIEManager.IsPIEPaused();
+	const char* pauseLabel = bIsPaused ? "Resume" : "Pause";
+
+	if (ImGui::Button(pauseLabel))
+	{
+		PIEManager.TogglePausePIE();
+	}
 
 	ImGui::SameLine();
 
 	// Stop 버튼
 	if (ImGui::Button("Stop"))
 	{
-		ULevelManager& LevelManager = ULevelManager::GetInstance();
-		FViewport* Viewport = URenderer::GetInstance().GetViewportClient();
-
-		if (Viewport)
-		{
-			FViewportClient* ActiveViewport = Viewport->GetActiveViewportClient();
-			if (ActiveViewport)
-			{
-				// Active Viewport의 RenderTargetLevel 초기화
-				ActiveViewport->RenderTargetLevel = nullptr;
-				UE_LOG("PIEControlWidget: PIE Viewport cleared");
-			}
-		}
-
-		// PIE 종료 (Level 삭제)
-		LevelManager.StopPIE();
-		UE_LOG("PIEControlWidget: PIE Stopped");
+		PIEManager.StopPIE();
 	}
 }

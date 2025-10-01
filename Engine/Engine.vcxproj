@@ -331,6 +331,7 @@
     <ClInclude Include="Source\Manager\Input\Public\InputManager.h" />
     <ClInclude Include="Source\Manager\Level\Public\LevelManager.h" />
     <ClInclude Include="Source\Manager\Path\Public\PathManager.h" />
+    <ClInclude Include="Source\Manager\PIE\Public\PIEManager.h" />
     <ClInclude Include="Source\Manager\Time\Public\TimeManager.h" />
     <ClInclude Include="Source\Manager\UI\Public\UIManager.h" />
     <ClInclude Include="Source\Render\FontRenderer\Public\FontRenderer.h" />
@@ -488,6 +489,7 @@
     <ClCompile Include="Source\Manager\Input\Private\InputManager.cpp" />
     <ClCompile Include="Source\Manager\Level\Private\LevelManager.cpp" />
     <ClCompile Include="Source\Manager\Path\Private\PathManager.cpp" />
+    <ClCompile Include="Source\Manager\PIE\Private\PIEManager.cpp" />
     <ClCompile Include="Source\Manager\Time\Private\TimeManager.cpp" />
     <ClCompile Include="Source\Manager\UI\Private\UIManager.cpp" />
     <ClCompile Include="Source\Render\Renderer\Private\DeviceResources.cpp" />

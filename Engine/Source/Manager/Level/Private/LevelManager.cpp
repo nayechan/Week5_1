@@ -199,41 +199,6 @@ TUniquePtr<ULevel> ULevelManager::CloneLevelForPIE()
 	return TUniquePtr<ULevel>(ClonedLevel);
 }
 
-void ULevelManager::StartPIE()
-{
-	if (PIELevel)
-	{
-		UE_LOG("LevelManager: PIE already running");
-		return;
-	}
-
-	UE_LOG("LevelManager: Starting PIE");
-	PIELevel = CloneLevelForPIE();
-
-	if (PIELevel)
-	{
-		PIELevel->Init();
-		UE_LOG("LevelManager: PIE Started Successfully");
-	}
-	else
-	{
-		UE_LOG("LevelManager: Failed to start PIE");
-	}
-}
-
-void ULevelManager::StopPIE()
-{
-	if (!PIELevel)
-	{
-		UE_LOG("LevelManager: PIE not running");
-		return;
-	}
-
-	UE_LOG("LevelManager: Stopping PIE");
-	PIELevel.reset();  // 자동 삭제
-	UE_LOG("LevelManager: PIE Stopped");
-}
-
 // =================================================================
 // Private Helper Functions
 // =================================================================
