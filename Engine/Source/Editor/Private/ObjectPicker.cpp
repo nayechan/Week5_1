@@ -152,7 +152,7 @@ void UObjectPicker::PickGizmo(UCamera* InActiveCamera, const FRay& WorldRay, UGi
 
 				}
 				X = (-B - sqrtf(Det)) / A;
-				PointOnCylinder = WorldRay.Origin + WorldRay.Direction * X;
+				PointOnCylinder = WorldRayOrigin + WorldRayDirection * X;
 				Height = (PointOnCylinder - GizmoLocation).Dot(GizmoAxis);
 				if (Height <= GizmoHeight && Height >= 0)
 				{
