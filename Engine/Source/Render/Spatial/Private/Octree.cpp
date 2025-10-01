@@ -457,7 +457,7 @@ uint32 FOctree::CountObjects(FOctreeNode* Node) const
 {
 	if (!Node) return 0;
 
-	uint32 Count = Node->Objects.size();
+uint32 Count = static_cast<uint32>(Node->Objects.size());
 	if (!Node->bIsLeaf)
 	{
 		for (FOctreeNode* Child : Node->Children)
@@ -487,7 +487,7 @@ uint32 FOctree::GetMaxNodeObjectCount(FOctreeNode* Node) const
 {
 	if (!Node) return 0;
 
-	uint32 MaxCount = Node->Objects.size();
+uint32 MaxCount = static_cast<uint32>(Node->Objects.size());
 
 	if (!Node->bIsLeaf)
 	{

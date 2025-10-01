@@ -2,12 +2,12 @@
 struct FVector;
 struct FVector4;
 
-struct alignas(16) FMatrix
+struct FMatrix
 {
 	/**
-	* @brief 4x4 float 타입의 행렬 (16바이트 정렬으로 SIMD 최적화)
+	* @brief 4x4 float 타입의 행렬
 	*/
-	alignas(16) float Data[4][4];
+	float Data[4][4];
 
 	static FMatrix DxToUE;
 	static FMatrix UEToDx;

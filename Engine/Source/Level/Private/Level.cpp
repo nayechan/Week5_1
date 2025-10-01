@@ -114,6 +114,16 @@ void ULevel::Init()
 	FAABB WorldBounds(FVector(-10000, -10000, -10000), FVector(10000, 10000, 10000));
 	StaticOctree.Initialize(WorldBounds);
 
+	// LevelActors를 Actors 배열과 동기화 (PIE 지원을 위함)
+	Actors.clear();
+	for (const auto& Actor : LevelActors)
+	{
+		if (Actor)
+		{
+			Actors.push_back(Actor.Get());
+		}
+	}
+
 	// 레벨 안의 모든 액터 → PrimitiveComponent 순회해서 Octree에 삽입
 	for (auto& Actor : LevelActors)
 	{
@@ -173,10 +183,14 @@ void ULevel::Cleanup()
 
 	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컸테이너들을 비웁니다.
 	ActorsToDelete.clear();
+	Actors.clear(); // PIE 지원을 위한 Actors 배열도 정리
 	LevelPrimitiveComponents.clear();
 
 	// 4. 선택된 액터 참조를 안전하게 해제합니다.
 	SelectedActor = nullptr;
+
+	// 5. Octree 정리
+	StaticOctree.Clear();
 }
 
 AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
@@ -193,7 +207,9 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 		{
 			NewActor->SetName(InName);
 		}
+		// LevelActors와 Actors 모두 업데이트 (PIE 지원)
 		LevelActors.push_back(TObjectPtr(NewActor));
+		Actors.push_back(NewActor);
 		NewActor->BeginPlay();
 
 		for (const auto& Comp : NewActor->GetOwnedComponents())

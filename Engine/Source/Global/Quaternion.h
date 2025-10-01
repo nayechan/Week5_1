@@ -1,7 +1,7 @@
 #pragma once
 
 struct FVector;
-struct alignas(16) FQuaternion
+struct FQuaternion
 {
 	float X;
 	float Y;
