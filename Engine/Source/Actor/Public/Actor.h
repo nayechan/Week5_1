@@ -5,6 +5,21 @@
 #include "Component/Public/SceneComponent.h"
 #include "Factory/Public/NewObject.h"
 
+/**
+ * @brief EndPlay 이유를 나타내는 enum
+ */
+namespace EEndPlayReason
+{
+	enum Type
+	{
+		Destroyed,
+		LevelTransition,
+		EndPlay,
+		RemovedFromWorld,
+		Quit
+	};
+}
+
 class UBillBoardComponent;
 /**
  * @brief Level에서 렌더링되는 UObject 클래스
@@ -31,9 +46,15 @@ public:
 
 	bool IsUniformScale() const;
 
+	bool bTickInEditor = false;
+
 	virtual void BeginPlay();
-	virtual void EndPlay();
-	virtual void Tick();
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason);
+	virtual void Tick(float DeltaTime);
+
+	// Tick 상태 관리
+	bool IsActorTickEnabled() const { return bActorTickEnabled; }
+	void SetActorTickEnabled(bool bEnabled) { bActorTickEnabled = bEnabled; }
 
 	// Getter & Setter
 	USceneComponent* GetRootComponent() const { return RootComponent.Get(); }
@@ -71,4 +92,7 @@ private:
 	TObjectPtr<USceneComponent> RootComponent = nullptr;
 	TObjectPtr<UBillBoardComponent> BillBoardComponent = nullptr;
 	TArray<TObjectPtr<UActorComponent>> OwnedComponents;
+
+	// Tick 상태
+	bool bActorTickEnabled = true;
 };

@@ -96,21 +96,38 @@ const FVector& AActor::GetActorScale3D() const
 	return RootComponent->GetRelativeScale3D();
 }
 
-void AActor::Tick()
+void AActor::Tick(float DeltaTime)
 {
-	for (auto& Component : OwnedComponents)
+	// 소유한 모든 컴포넌트의 Tick 처리
+	for (UActorComponent* Component : OwnedComponents)
 	{
-		if (Component)
+		if (Component && Component->IsComponentTickEnabled())
 		{
-			Component->TickComponent();
+			Component->TickComponent(DeltaTime);
 		}
 	}
 }
 
 void AActor::BeginPlay()
 {
+	// 모든 컴포넌트의 BeginPlay 호출
+	for (UActorComponent* Component : OwnedComponents)
+	{
+		if (Component)
+		{
+			Component->BeginPlay();
+		}
+	}
 }
 
-void AActor::EndPlay()
+void AActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// 모든 컴포넌트의 EndPlay 호출
+	for (UActorComponent* Component : OwnedComponents)
+	{
+		if (Component)
+		{
+			Component->EndPlay(EndPlayReason);
+		}
+	}
 }

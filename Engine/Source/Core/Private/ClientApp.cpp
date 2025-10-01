@@ -7,6 +7,7 @@
 #include "Manager/Level/Public/LevelManager.h"
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Manager/Time/Public/TimeManager.h"
+#include "Manager/World/Public/WorldManager.h"
 
 #include "Manager/UI/Public/UIManager.h"
 #include "Manager/Config/Public/ConfigManager.h"
@@ -84,6 +85,7 @@ int FClientApp::InitializeSystem() const
 	// Initialize By Get Instance
 	UTimeManager::GetInstance();
 	UInputManager::GetInstance();
+	UWorldManager::GetInstance(); // WorldManager 초기화
 
 	auto& Renderer = URenderer::GetInstance();
 	Renderer.Init(Window->GetWindowHandle());
@@ -110,6 +112,13 @@ int FClientApp::InitializeSystem() const
 		ULevelManager::GetInstance().CreateNewLevel();
 	}
 
+	// LevelManager의 Level을 WorldManager에 연결
+	ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+	if (CurrentLevel)
+	{
+		UWorldManager::GetInstance().SetCurrentLevel(CurrentLevel);
+	}
+
 	return S_OK;
 }
 
@@ -123,8 +132,10 @@ void FClientApp::UpdateSystem() const
 	auto& UIManager = UUIManager::GetInstance();
 	auto& Renderer = URenderer::GetInstance();
 	auto& LevelManager = ULevelManager::GetInstance();
+	auto& WorldManager = UWorldManager::GetInstance();
 
 	LevelManager.Update();
+	WorldManager.Update(TimeManager.GetDeltaTime()); // World 기반 Tick
 	TimeManager.Update();
 	InputManager.Update(Window);
 	UIManager.Update();
@@ -184,6 +195,7 @@ void FClientApp::ShutdownSystem() const
 	UStatOverlay::GetInstance().Release();
 	URenderer::GetInstance().Release();
 	UUIManager::GetInstance().Shutdown();
+	UWorldManager::GetInstance().Shutdown(); // WorldManager 종료
 	ULevelManager::GetInstance().Shutdown();
 	UAssetManager::GetInstance().Release();
 

@@ -21,6 +21,8 @@
 
 #include <json.hpp>
 
+IMPLEMENT_CLASS(ULevel, UObject)
+
 ULevel::ULevel() = default;
 
 ULevel::ULevel(const FName& InName)
@@ -146,7 +148,7 @@ void ULevel::Update()
 	{
 		if (Actor)
 		{
-			Actor->Tick();
+			Actor->Tick(0.0f); // TODO: DeltaTime 매개변수 추가 필요
 		}
 	}
 }
@@ -169,7 +171,7 @@ void ULevel::Cleanup()
 	}
 	LevelActors.clear();
 
-	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컨테이너들을 비웁니다.
+	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컸테이너들을 비웁니다.
 	ActorsToDelete.clear();
 	LevelPrimitiveComponents.clear();
 
@@ -401,3 +403,4 @@ void ULevel::MoveToDynamic(UPrimitiveComponent* InPrim)
 	StaticOctree.Remove(InPrim);
 	DynamicPrimitives.push_back(TObjectPtr(InPrim));
 }
+
