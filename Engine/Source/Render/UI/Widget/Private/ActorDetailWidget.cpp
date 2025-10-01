@@ -2,6 +2,7 @@
 #include "Render/UI/Widget/Public/ActorDetailWidget.h"
 
 #include "Manager/Level/Public/LevelManager.h"
+#include "Manager/UI/Public/UIManager.h"
 #include "Level/Public/Level.h"
 #include "Actor/Public/Actor.h"
 #include "Component/Public/ActorComponent.h"
@@ -186,6 +187,7 @@ void UActorDetailWidget::RenderComponentTree(AActor* InSelectedActor)
 						USceneComponent* ParentToAttach = nullptr;
 
 						// 1. 현재 선택된 컴포넌트가 있는지, 그리고 SceneComponent인지 확인
+						TObjectPtr<UObject> SelectedComponent = UUIManager::GetInstance().GetSelectedObject();
 						if (USceneComponent* SelectedSceneComp = Cast<USceneComponent>(SelectedComponent.Get()))
 						{
 							ParentToAttach = SelectedSceneComp; // 있다면 선택된 컴포넌트에 붙임
@@ -280,7 +282,7 @@ void UActorDetailWidget::RenderComponentNode(USceneComponent* InComponent)
 	{
 		NodeFlags |= ImGuiTreeNodeFlags_Leaf;
 	}
-	const bool bIsSelected = (SelectedComponent.Get() == InComponent);
+	const bool bIsSelected = (UUIManager::GetInstance().GetSelectedObject() == InComponent);
 	if (bIsSelected)
 	{
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
@@ -297,7 +299,7 @@ void UActorDetailWidget::RenderComponentNode(USceneComponent* InComponent)
 
 	if (ImGui::IsItemClicked())
 	{
-		SelectedComponent = InComponent;
+		UUIManager::GetInstance().SetSelectedObject(TObjectPtr<UObject>(InComponent));
 	}
 
 	if (bNodeOpen)
@@ -325,7 +327,7 @@ void UActorDetailWidget::RenderNonSceneComponentNode(UActorComponent* InComponen
 
 	ImGuiTreeNodeFlags NodeFlags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
-	const bool bIsSelected = (SelectedComponent.Get() == InComponent);
+	const bool bIsSelected = (UUIManager::GetInstance().GetSelectedObject() == InComponent);
 	if (bIsSelected)
 	{
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
@@ -341,7 +343,7 @@ void UActorDetailWidget::RenderNonSceneComponentNode(UActorComponent* InComponen
 
 	if (ImGui::IsItemClicked())
 	{
-		SelectedComponent = InComponent;
+		UUIManager::GetInstance().SetSelectedObject(TObjectPtr<UObject>(InComponent));
 	}
 	ImGui::PopID();
 }

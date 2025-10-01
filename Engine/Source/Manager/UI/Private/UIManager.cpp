@@ -562,3 +562,16 @@ void UUIManager::OnSelectedActorChanged(AActor* InSelectedActor) const
 		UIWindow->OnSelectedActorChanged(InSelectedActor);
 	}
 }
+
+void UUIManager::SetSelectedObject(TObjectPtr<UObject> InObject)
+{
+	if (SelectedObject != InObject)
+	{
+		SelectedObject = InObject;
+	}
+}
+
+TObjectPtr<UObject> UUIManager::GetSelectedObject() const
+{
+	return SelectedObject;
+}

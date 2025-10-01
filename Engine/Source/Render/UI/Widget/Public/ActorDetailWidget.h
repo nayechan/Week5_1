@@ -35,7 +35,6 @@ private:
 	void FinishRenamingActor(TObjectPtr<AActor> InActor);
 	void CancelRenamingActor();
 
-	TObjectPtr<UActorComponent> SelectedComponent;
 	TObjectPtr<USceneComponent> NodeToOpenNextFrame = nullptr;
 
 	// 컴포넌트 클래스 목록을 캐싱
