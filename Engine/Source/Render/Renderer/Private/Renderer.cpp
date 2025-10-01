@@ -12,6 +12,8 @@
 #include "Editor/Public/Camera.h"
 #include "Level/Public/Level.h"
 #include "Manager/Level/Public/LevelManager.h"
+#include "Manager/World/Public/WorldManager.h"
+#include "Core/Public/World.h"
 #include "Manager/UI/Public/UIManager.h"
 #include "Manager/Config/Public/ConfigManager.h"
 #include "Render/UI/Overlay/Public/StatOverlay.h"
@@ -302,10 +304,15 @@ void URenderer::Update()
 		UpdateConstant(CurrentCamera->GetFViewProjConstants());
 
 		// 4. 씬(레벨, 에디터 요소 등)을 이 뷰포트와 카메라 기준으로 렌더링합니다.
-		RenderLevel(CurrentCamera);
+		RenderLevel(ViewportClient);
 
 		// 5. 에디터를 렌더링합니다.
-		ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
+		// PIE World인 경우 Editor 렌더링 스킵
+		bool bIsPIEViewport = ViewportClient.RenderTargetWorld && ViewportClient.RenderTargetWorld->IsPIEWorld();
+		if (!bIsPIEViewport)
+		{
+			ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
+		}
 	}
 
 	// HZB 생성 (매 프레임 깊이 버퍼 완료 후)
@@ -344,19 +351,29 @@ void URenderer::RenderBegin() const
 /**
  * @brief Buffer에 데이터 입력 및 Draw
  */
-void URenderer::RenderLevel(UCamera* InCurrentCamera)
+void URenderer::RenderLevel(FViewportClient& InViewport)
 {
+	// Viewport가 렌더링할 World 결정: RenderTargetWorld가 있으면 사용, 없으면 Editor World 사용
+	UWorld* TargetWorld = InViewport.RenderTargetWorld
+		? InViewport.RenderTargetWorld
+		: UWorldManager::GetInstance().GetCurrentWorld().Get();
 
-    // Level 없으면 Early Return
-    ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
-    if (!CurrentLevel)
-        return;
+	// World 없으면 Early Return
+	if (!TargetWorld)
+		return;
+
+	// World로부터 Level 가져오기
+	ULevel* TargetLevel = TargetWorld->GetLevel();
+	if (!TargetLevel)
+		return;
 
 	// 통계 초기화
-	uint32 totalStaticPrimitives = CurrentLevel->GetStaticOctree().GetObjectCount();
-	uint32 totalDynamicPrimitives = CurrentLevel->GetDynamicPrimitives().size();
-    uint32 lodCounts[3] = { 0 };
+	uint32 totalStaticPrimitives = TargetLevel->GetStaticOctree().GetObjectCount();
+	uint32 totalDynamicPrimitives = TargetLevel->GetDynamicPrimitives().size();
+	uint32 lodCounts[3] = { 0 };
 
+	// Viewport의 Camera 사용
+	UCamera* InCurrentCamera = &InViewport.Camera;
 
 	// Frustum Culling Test
 	FFrustum ViewFrustum = InCurrentCamera->GetViewFrustum();
@@ -472,11 +489,11 @@ void URenderer::RenderLevel(UCamera* InCurrentCamera)
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옥트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		CurrentLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
+		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
 	}
 
 	// Dynamic Primitives 처리
-	const auto& DynamicPrimitives = CurrentLevel->GetDynamicPrimitives();
+	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
 		if (!DynPrim)

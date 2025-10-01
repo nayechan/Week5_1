@@ -10,6 +10,7 @@ class UDetailWindow;
 class UMainMenuWindow;
 class UEditorWindow;
 class UViewportClientWindow;
+class UPIEControlWindow;
 
 /**
  * @brief UI 윈도우 도킹 방향
@@ -40,4 +41,5 @@ public:
 		CreateExperimentalFeatureWindow(EUIDockDirection InDockDirection = EUIDockDirection::Right);
 	static UEditorWindow* CreateEditorWindow(EUIDockDirection InDockDirection = EUIDockDirection::None);
 	static UViewportClientWindow* CreateViewportClientWindow(EUIDockDirection InDockDirection = EUIDockDirection::None);
+	static UPIEControlWindow* CreatePIEControlWindow(EUIDockDirection InDockDirection = EUIDockDirection::None);
 };

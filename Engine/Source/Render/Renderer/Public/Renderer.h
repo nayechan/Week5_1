@@ -3,6 +3,7 @@
 #include "Core/Public/Object.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Editor/Public/EditorPrimitive.h"
+#include "Editor/Public/ViewportClient.h"
 
 class UPipeline;
 class UDeviceResources;
@@ -71,7 +72,7 @@ public:
 	// Render
 	void Update();
 	void RenderBegin() const;
-	void RenderLevel(UCamera* InCurrentCamera);
+	void RenderLevel(FViewportClient& InViewport);
 	void RenderEnd() const;
 	void RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState);
 	void RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* InCurrentCamera);

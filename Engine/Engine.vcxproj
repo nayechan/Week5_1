@@ -333,6 +333,7 @@
     <ClInclude Include="Source\Manager\Input\Public\InputManager.h" />
     <ClInclude Include="Source\Manager\Level\Public\LevelManager.h" />
     <ClInclude Include="Source\Manager\Path\Public\PathManager.h" />
+    <ClInclude Include="Source\Manager\PIE\Public\PIEManager.h" />
     <ClInclude Include="Source\Manager\Time\Public\TimeManager.h" />
     <ClInclude Include="Source\Manager\UI\Public\UIManager.h" />
     <ClInclude Include="Source\Render\FontRenderer\Public\FontRenderer.h" />
@@ -359,6 +360,7 @@
     <ClInclude Include="Source\Render\UI\Widget\Public\FPSWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\InputInformationWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\MainBarWidget.h" />
+    <ClInclude Include="Source\Render\UI\Widget\Public\PIEControlWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\PrimitiveSpawnWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\SceneHierarchyWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\SceneIOWidget.h" />
@@ -374,6 +376,7 @@
     <ClInclude Include="Source\Render\UI\Window\Public\MainMenuWindow.h" />
     <ClInclude Include="Source\Render\UI\Window\Public\OutlinerWindow.h" />
     <ClInclude Include="Source\Render\UI\Window\Public\DetailWindow.h" />
+    <ClInclude Include="Source\Render\UI\Window\Public\PIEControlWindow.h" />
     <ClInclude Include="Source\Render\UI\Window\Public\UIWindow.h" />
     <ClInclude Include="Source\Render\UI\Window\Public\ViewportClientWindow.h" />
     <ClInclude Include="Source\Texture\Public\Material.h" />
@@ -490,6 +493,7 @@
     <ClCompile Include="Source\Manager\Input\Private\InputManager.cpp" />
     <ClCompile Include="Source\Manager\Level\Private\LevelManager.cpp" />
     <ClCompile Include="Source\Manager\Path\Private\PathManager.cpp" />
+    <ClCompile Include="Source\Manager\PIE\Private\PIEManager.cpp" />
     <ClCompile Include="Source\Manager\Time\Private\TimeManager.cpp" />
     <ClCompile Include="Source\Manager\UI\Private\UIManager.cpp" />
     <ClCompile Include="Source\Render\Renderer\Private\DeviceResources.cpp" />
@@ -516,6 +520,7 @@
     <ClCompile Include="Source\Render\UI\Widget\Private\FPSWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\InputInformationWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\MainBarWidget.cpp" />
+    <ClCompile Include="Source\Render\UI\Widget\Private\PIEControlWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\PrimitiveSpawnWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\SceneHierarchyWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\SceneIOWidget.cpp" />
@@ -531,6 +536,7 @@
     <ClCompile Include="Source\Render\UI\Window\Private\MainMenuWindow.cpp" />
     <ClCompile Include="Source\Render\UI\Window\Private\OutlinerWindow.cpp" />
     <ClCompile Include="Source\Render\UI\Window\Private\DetailWindow.cpp" />
+    <ClCompile Include="Source\Render\UI\Window\Private\PIEControlWindow.cpp" />
     <ClCompile Include="Source\Render\UI\Window\Private\UIWindow.cpp" />
     <ClCompile Include="Source\Render\UI\Window\Private\ViewportClientWindow.cpp" />
     <ClCompile Include="Source\Texture\Private\Material.cpp">

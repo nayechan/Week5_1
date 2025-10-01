@@ -22,6 +22,7 @@ public:
 	// Save & Load System
 	bool SaveCurrentLevel(const FString& InFilePath) const;
 	bool CreateNewLevel(const FString& InLevelName = "Untitled");
+	ULevel* CreateLevel(const FString& InFilePath);
 	static path GetLevelDirectory();
 	static path GenerateLevelFilePath(const FString& InLevelName);
 
