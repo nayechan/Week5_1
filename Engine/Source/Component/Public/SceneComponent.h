@@ -12,6 +12,7 @@ class USceneComponent : public UActorComponent
 
 public:
 	USceneComponent();
+	virtual ~USceneComponent();
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 

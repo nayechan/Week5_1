@@ -17,18 +17,24 @@ AActor::AActor(UObject* InOuter)
 
 AActor::~AActor()
 {
-	// 모든 컴포넌트를 안전하게 해제 (자식 컴포넌트 포함)
-	TArray<UActorComponent*> AllComponents = GetAllComponents();
+	// 직접 소유한 컴포넌트만 삭제 (자식 컴포넌트는 부모가 삭제할 때 자동으로 처리됨)
+	UE_LOG("AActor::~AActor(): Destroying %s with %d owned components", 
+	       GetName().ToString().c_str(), OwnedComponents.size());
 	
-	// 역순으로 삭제 (자식부터 먼저 삭제)
-	for (int32 i = AllComponents.size() - 1; i >= 0; --i)
+	// 역순으로 삭제 (나중에 생성된 것부터 먼저 삭제)
+	for (int32 i = OwnedComponents.size() - 1; i >= 0; --i)
 	{
-		UActorComponent* Component = AllComponents[i];
+		UActorComponent* Component = OwnedComponents[i].Get();
 		if (Component)
 		{
-			// SceneComponent인 경우 부모-자식 관계 정리
+			UE_LOG("  Deleting component: %s (Type: %d)", 
+			       Component->GetName().ToString().c_str(),
+			       static_cast<int>(Component->GetComponentType()));
+			
+			// SceneComponent인 경우 부모 관계만 정리 (자식들은 소멸자에서 처리)
 			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
 			{
+				// 부모 관계 해제 - 자식들은 소멸자에서 자동으로 처리됨
 				SceneComp->SetParentAttachment(nullptr);
 			}
 			
@@ -38,6 +44,8 @@ AActor::~AActor()
 	
 	SetOuter(nullptr);
 	OwnedComponents.clear();
+	
+	UE_LOG("AActor::~AActor(): Destruction completed for %s", GetName().ToString().c_str());
 }
 
 void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)

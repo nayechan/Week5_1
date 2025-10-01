@@ -17,6 +17,36 @@ USceneComponent::USceneComponent()
 	ComponentType = EComponentType::Scene;
 }
 
+USceneComponent::~USceneComponent()
+{
+	UE_LOG("USceneComponent::~USceneComponent(): Destroying %s with %d children", 
+	       GetName().ToString().c_str(), Children.size());
+	
+	// 자식들의 부모 참조를 해제 (자식들 자체는 삭제하지 않음 - Actor가 소유하고 있음)
+	for (USceneComponent* Child : Children)
+	{
+		if (Child)
+		{
+			UE_LOG("  Clearing parent reference for child: %s", 
+			       Child->GetName().ToString().c_str());
+			Child->ParentAttachment = nullptr;  // 부모 참조만 해제
+		}
+	}
+	Children.clear();
+	
+	// 내가 다른 컴포넌트의 자식이었다면, 부모에서 나를 제거
+	if (ParentAttachment)
+	{
+		UE_LOG("  Removing self from parent: %s", 
+		       ParentAttachment->GetName().ToString().c_str());
+		ParentAttachment->RemoveChild(this);
+		ParentAttachment = nullptr;
+	}
+	
+	UE_LOG("USceneComponent::~USceneComponent(): Destruction completed for %s", 
+	       GetName().ToString().c_str());
+}
+
 void USceneComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
 	Super::Serialize(bInIsLoading, InOutHandle);

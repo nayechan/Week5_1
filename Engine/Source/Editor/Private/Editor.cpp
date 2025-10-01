@@ -104,7 +104,8 @@ void UEditor::Update()
 	ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
 	if (CurrentLevel)
 	{
-		for (auto& Actor : CurrentLevel->GetActors())
+		TArray<AActor*> Actors = CurrentLevel->GetActorsPtrs();
+		for (auto& Actor : Actors)
 		{
 			if (Actor && Actor->GetRootComponent())
 			{
@@ -716,7 +717,8 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 TArray<UPrimitiveComponent*> UEditor::FindCandidatePrimitives(ULevel* InLevel)
 {
 	TArray<UPrimitiveComponent*> Candidate;
-	for (AActor* Actor : InLevel->GetActors())
+	TArray<AActor*> Actors = InLevel->GetActorsPtrs();
+	for (AActor* Actor : Actors)
 	{
 		for (auto& ActorComponent : Actor->GetOwnedComponents())
 		{
