@@ -93,3 +93,90 @@ void USceneComponent::MarkAsDirty()
 		Child->MarkAsDirty();
 	}
 }
+
+void USceneComponent::SetRelativeLocation(const FVector& Location)
+{
+	RelativeLocation = Location;
+	MarkAsDirty();
+}
+
+void USceneComponent::SetRelativeRotation(const FVector& Rotation)
+{
+	RelativeRotation = Rotation;
+	MarkAsDirty();
+}
+
+void USceneComponent::SetRelativeScale3D(const FVector& Scale)
+{
+	FVector ActualScale = Scale;
+	if (ActualScale.X < MinScale)
+		ActualScale.X = MinScale;
+	if (ActualScale.Y < MinScale)
+		ActualScale.Y = MinScale;
+	if (ActualScale.Z < MinScale)
+		ActualScale.Z = MinScale;
+	RelativeScale3D = ActualScale;
+	MarkAsDirty();
+}
+
+void USceneComponent::SetUniformScale(bool bIsUniform)
+{
+	bIsUniformScale = bIsUniform;
+}
+
+bool USceneComponent::IsUniformScale() const
+{
+	return bIsUniformScale;
+}
+
+const FVector& USceneComponent::GetRelativeLocation() const
+{
+	return RelativeLocation;
+}
+
+const FVector& USceneComponent::GetRelativeRotation() const
+{
+	return RelativeRotation;
+}
+
+const FVector& USceneComponent::GetRelativeScale3D() const
+{
+	return RelativeScale3D;
+}
+
+const FMatrix& USceneComponent::GetWorldTransform() const
+{
+	if (bIsTransformDirty)
+	{
+		WorldTransform = FMatrix::GetModelMatrix(RelativeLocation, FVector::GetDegreeToRadian(RelativeRotation), RelativeScale3D);
+
+
+		for (USceneComponent* Ancester = ParentAttachment; Ancester && Ancester->ParentAttachment; Ancester = Ancester->ParentAttachment)
+		{
+			WorldTransform *= FMatrix::GetModelMatrix(Ancester->RelativeLocation, FVector::GetDegreeToRadian(Ancester->RelativeRotation), Ancester->RelativeScale3D);
+		}
+
+		bIsTransformDirty = false;
+	}
+
+	return WorldTransform;
+}
+
+const FMatrix& USceneComponent::GetWorldTransformInverse() const
+{
+
+	if (bIsTransformDirtyInverse)
+	{
+		WorldTransformInverse = FMatrix::Identity();
+		for (USceneComponent* Ancester = ParentAttachment; Ancester && Ancester->ParentAttachment; Ancester = Ancester->ParentAttachment)
+		{
+			WorldTransformInverse = FMatrix::GetModelMatrixInverse(Ancester->RelativeLocation, FVector::GetDegreeToRadian(Ancester->RelativeRotation), Ancester->RelativeScale3D) * WorldTransformInverse;
+
+		}
+		WorldTransformInverse = WorldTransformInverse * FMatrix::GetModelMatrixInverse(RelativeLocation, FVector::GetDegreeToRadian(RelativeRotation), RelativeScale3D);
+
+		bIsTransformDirtyInverse = false;
+	}
+
+	return WorldTransformInverse;
+}

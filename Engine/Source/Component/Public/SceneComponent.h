@@ -33,14 +33,14 @@ public:
 	const FVector& GetRelativeRotation() const;
 	const FVector& GetRelativeScale3D() const;
 
-	const FMatrix& GetWorldTransformMatrix() const;
-	const FMatrix& GetWorldTransformMatrixInverse() const;
+	const FMatrix& GetWorldTransform() const;
+	const FMatrix& GetWorldTransformInverse() const;
 
 private:
 	mutable bool bIsTransformDirty = true;
 	mutable bool bIsTransformDirtyInverse = true;
-	mutable FMatrix WorldTransformMatrix;
-	mutable FMatrix WorldTransformMatrixInverse;
+	mutable FMatrix WorldTransform;
+	mutable FMatrix WorldTransformInverse;
 
 	USceneComponent* ParentAttachment = nullptr;
 	TArray<USceneComponent*> Children;

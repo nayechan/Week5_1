@@ -314,7 +314,7 @@ void USceneHierarchyWidget::FocusOnActor(TObjectPtr<AActor> InActor)
 		return;
 	}
 
-	const FMatrix& ActorWorldMatrix = InActor->GetRootComponent()->GetWorldTransformMatrix();
+	const FMatrix& ActorWorldMatrix = InActor->GetRootComponent()->GetWorldTransform();
 	FVector ActorForward = { ActorWorldMatrix.Data[0][0], ActorWorldMatrix.Data[0][1], ActorWorldMatrix.Data[0][2] };
 	ActorForward.Normalize();
 
