@@ -4,6 +4,7 @@
 #include "Component/Mesh/Public/StaticMeshComponent.h"
 #include "Manager/Level/Public/LevelManager.h"
 #include "Manager/PIE/Public/PIEManager.h"
+#include "Manager/World/Public/WorldManager.h"
 #include "Level/Public/Level.h"
 
 IMPLEMENT_CLASS(AActor, UObject)
@@ -135,13 +136,16 @@ UActorComponent* AActor::AddComponentByClass(UClass* ComponentClass, const FName
 		NewComponent->SetOwner(this);
 		OwnedComponents.push_back(NewComponent);
 
-		// PrimitiveComponent 타입이라면, 레벨의 렌더링 목록에 등록
+		// PrimitiveComponent 타입이라면, 레벨의 렌더링 목록에 등록 (단, PIE 복제 중에는 스킵)
 		if (UPrimitiveComponent* NewPrimitive = Cast<UPrimitiveComponent>(NewComponent.Get()))
 		{
-			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
-			if (CurrentLevel)
+			if (!UWorldManager::GetInstance().IsDuplicatingForPIE())
 			{
-				CurrentLevel->RegisterPrimitiveComponent(NewPrimitive);
+				ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+				if (CurrentLevel)
+				{
+					CurrentLevel->RegisterPrimitiveComponent(NewPrimitive);
+				}
 			}
 		}
 	}
@@ -170,13 +174,23 @@ void AActor::RegisterComponent(UActorComponent* Component)
 	OwnedComponents.push_back(TObjectPtr<UActorComponent>(Component));
 	Component->SetOwner(this);
 
-	// PrimitiveComponent인 경우 Level에 등록
+	// PrimitiveComponent인 경우 Level에 등록 (단, PIE 복제 중에는 스킵)
 	if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Component))
 	{
-		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
-		if (CurrentLevel)
+		if (UWorldManager::GetInstance().IsDuplicatingForPIE())
 		{
-			CurrentLevel->RegisterPrimitiveComponent(PrimitiveComp);
+			UE_LOG("AActor::RegisterComponent: Skipping level registration during PIE duplication for %s", 
+			       PrimitiveComp->GetName().ToString().c_str());
+		}
+		else
+		{
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)
+			{
+				CurrentLevel->RegisterPrimitiveComponent(PrimitiveComp);
+				UE_LOG("AActor::RegisterComponent: Registered %s to editor level", 
+				       PrimitiveComp->GetName().ToString().c_str());
+			}
 		}
 	}
 

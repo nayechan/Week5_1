@@ -5,6 +5,7 @@
 #include "Actor/Public/Actor.h"
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Manager/Level/Public/LevelManager.h"
+#include "Manager/World/Public/WorldManager.h"
 #include "Level/Public/Level.h"
 #include "Utility/Public/JsonSerializer.h"
 #include "Global/Matrix.h"
@@ -137,13 +138,25 @@ void USceneComponent::AddChild(USceneComponent* NewChild)
 		NewChild->UpdateWorldTransform();
 
 		// CRITICAL: Register child PrimitiveComponents with the Level for rendering
+		// BUT skip registration during PIE duplication to prevent editor contamination
 		if (UPrimitiveComponent* PrimitiveChild = Cast<UPrimitiveComponent>(NewChild))
 		{
-			// Get current level and register the component
-			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
-			if (CurrentLevel)
+			if (UWorldManager::GetInstance().IsDuplicatingForPIE())
 			{
-				CurrentLevel->RegisterPrimitiveComponent(PrimitiveChild);
+				UE_LOG("SceneComponent::AddChild: Skipping level registration during PIE duplication for %s", 
+				       PrimitiveChild->GetName().ToString().c_str());
+				// Registration will be handled by PIE Level->Init() later
+			}
+			else
+			{
+				// Normal editor mode - register to current level
+				ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+				if (CurrentLevel)
+				{
+					CurrentLevel->RegisterPrimitiveComponent(PrimitiveChild);
+					UE_LOG("SceneComponent::AddChild: Registered %s to editor level", 
+					       PrimitiveChild->GetName().ToString().c_str());
+				}
 			}
 		}
 	}

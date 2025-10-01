@@ -17,7 +17,7 @@ UStaticMesh::~UStaticMesh()
 
 	for (UMaterial* Material : Materials)
 	{
-		SafeDelete(Material);
+		/*SafeDelete(Material);*/
 	}
 	Materials.clear();
 }
