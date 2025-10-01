@@ -310,7 +310,6 @@ void URenderer::Update()
 		// 5. 에디터를 렌더링합니다.
 		// PIE World인 경우 에디터 오버레이 렌더링 스킵 (그리드, 축, 기즈모 숨김)
 		bool bIsPIEViewport = ViewportClient.RenderTargetWorld && ViewportClient.RenderTargetWorld->IsPIEWorld();
-		UE_LOG("Renderer::Update: Viewport is PIE: %s", bIsPIEViewport ? "true" : "false");
 		if (!bIsPIEViewport)
 		{
 			// 에디터 모드에서만 그리드, 축, 기즈모 렌더링
@@ -361,11 +360,8 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		? InViewport.RenderTargetWorld
 		: UWorldManager::GetInstance().GetCurrentWorld().Get();
 
-	// 디버그: 어떤 월드를 렌더링하는지 확인
+	// PIE World 확인
 	bool bIsPIEWorld = InViewport.RenderTargetWorld && InViewport.RenderTargetWorld->IsPIEWorld();
-	UE_LOG("Renderer::RenderLevel: Rendering World: %s (PIE: %s)", 
-	       TargetWorld ? TargetWorld->GetName().ToString().data() : "null",
-	       bIsPIEWorld ? "true" : "false");
 
 	// World 없으면 Early Return
 	if (!TargetWorld)
@@ -427,16 +423,9 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		}
 		if (!primitive->IsVisible())
 		{
-			UE_LOG("Renderer: Primitive %s (Owner: %s) not visible, skipping render", 
-			       primitive->GetName().ToString().data(),
-			       primitive->GetOwner() ? primitive->GetOwner()->GetName().ToString().data() : "null");
 			return;
 		}
 		
-		// 렌더링되는 액터 디버그 로그
-		UE_LOG("Renderer: Rendering primitive %s (Owner: %s)", 
-		       primitive->GetName().ToString().data(),
-		       primitive->GetOwner() ? primitive->GetOwner()->GetName().ToString().data() : "null");
 
 		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
 		static int lodFrameCounter = 0;
@@ -470,32 +459,28 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
             UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
             if (MeshComponent)
             {
-                UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-                if (MeshComponent)
-                {
-					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
-					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
+				// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
+				int32 LodIndex = MeshComponent->GetCurrentLODIndex();
 
-					/*FVector Min, Max;
-					MeshComponent->GetWorldAABB(Min, Max);
-					FVector CompLocation = (Min + Max) * 0.5f;
-					FVector CamerLocation = InCurrentCamera->GetLocation();
-					float DistSq = (CamerLocation - CompLocation).LengthSquared();
+				/*FVector Min, Max;
+				MeshComponent->GetWorldAABB(Min, Max);
+				FVector CompLocation = (Min + Max) * 0.5f;
+				FVector CamerLocation = InCurrentCamera->GetLocation();
+				float DistSq = (CamerLocation - CompLocation).LengthSquared();
 
-				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-				int32 LodIndex = 0;
-				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
+			const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
+			int32 LodIndex = 0;
+			for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
+			{
+				if (DistSq >= LodDistanceSq[i])
 				{
-					if (DistSq >= LodDistanceSq[i])
-					{
-						LodIndex = i;
-						break;
-					}
-					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-                    if (LodIndex >= 0 && LodIndex < 3)
-                    {
-                        lodCounts[LodIndex]++;
-                    }
+					LodIndex = i;
+					break;
+				}
+				MeshComponent->SetCurrentLODIndex(LodIndex);*/
+                if (LodIndex >= 0 && LodIndex < 3)
+                {
+                    lodCounts[LodIndex]++;
                 }
             }
 			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
@@ -511,13 +496,10 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옵트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		UE_LOG("Renderer::RenderLevel: Querying static octree with %u total objects", totalStaticPrimitives);
 		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
-		UE_LOG("Renderer::RenderLevel: Rendered %u primitives from octree", renderedPrimitiveCount);
 	}
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
-	UE_LOG("Renderer::RenderLevel: Processing %zu dynamic primitives", DynamicPrimitives.size());
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
 		if (!DynPrim)
@@ -526,9 +508,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		}
 		if (!DynPrim->IsVisible())
 		{
-			UE_LOG("Renderer: Dynamic primitive %s (Owner: %s) not visible", 
-			       DynPrim->GetName().ToString().data(),
-			       DynPrim->GetOwner() ? DynPrim->GetOwner()->GetName().ToString().data() : "null");
 			continue;
 		}
 		FVector WorldMin, WorldMax;
@@ -536,15 +515,8 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		bool bInFrustum = ViewFrustum.IsBoxInFrustum(FAABB(WorldMin, WorldMax));
 		if (!bInFrustum)
 		{
-			UE_LOG("Renderer: Dynamic primitive %s (Owner: %s) outside frustum - AABB(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f)", 
-			       DynPrim->GetName().ToString().data(),
-			       DynPrim->GetOwner() ? DynPrim->GetOwner()->GetName().ToString().data() : "null",
-			       WorldMin.X, WorldMin.Y, WorldMin.Z, WorldMax.X, WorldMax.Y, WorldMax.Z);
 			continue;
 		}
-		UE_LOG("Renderer: Dynamic primitive %s (Owner: %s) passed frustum test", 
-		       DynPrim->GetName().ToString().data(),
-		       DynPrim->GetOwner() ? DynPrim->GetOwner()->GetName().ToString().data() : "null");
 		RenderCallback(DynPrim, nullptr);
 	}
 	
@@ -1559,13 +1531,12 @@ void URenderer::TestComputeShaderExecution() const
 		{
 			FVector4* ResultData = static_cast<FVector4*>(MappedResult.pData);
 
-			UE_LOG("=== Compute Shader 테스트 결과 ===");
+			// Compute Shader 테스트 결과 확인 (10개 요소)
 			for (uint32 i = 0; i < 10 && i < ElementCount; ++i)
 			{
-				UE_LOG("Element[%u]: (%.2f, %.2f, %.2f, %.2f)",
-					i, ResultData[i].X, ResultData[i].Y, ResultData[i].Z, ResultData[i].W);
+				// 결과 데이터 확인 가능 (ResultData[i])
 			}
-			UE_LOG("=== 테스트 완료 ===");
+			// 테스트 완료
 
 			GetDeviceContext()->Unmap(StagingBuffer, 0);
 		}

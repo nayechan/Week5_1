@@ -23,10 +23,7 @@ void ULODManager::LoadSettings()
 	LODDistanceSquared0 = LODDistance0 * LODDistance0;
 	LODDistanceSquared1 = LODDistance1 * LODDistance1;
 
-	UE_LOG("LOD Settings Loaded - Enabled: %s, Distance0: %.1f (%.0f), Distance1: %.1f (%.0f)",
-		bLODEnabled ? "true" : "false",
-		LODDistance0, LODDistanceSquared0,
-		LODDistance1, LODDistanceSquared1);
+	// LOD Settings Loaded
 }
 
 __forceinline void ULODManager::UpdateLOD(UStaticMeshComponent* MeshComp, const FVector& CameraPos) const

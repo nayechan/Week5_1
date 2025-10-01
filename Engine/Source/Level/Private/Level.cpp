@@ -420,9 +420,6 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 {
 	if (!Actor) return;
 	
-	UE_LOG("ULevel::ProcessActorForInit: Processing actor %s with %zu components", 
-	       Actor->GetName().ToString().data(), Actor->GetOwnedComponents().size());
-	
 	for (auto& Component : Actor->GetOwnedComponents())
 	{
 		if (Component->GetComponentType() >= EComponentType::Primitive)
@@ -432,8 +429,6 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 			
 			// LevelPrimitiveComponents에 추가 (렌더링을 위해 필수!)
 			LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComponent));
-			UE_LOG("ULevel::ProcessActorForInit: Added component %s to LevelPrimitiveComponents", 
-			       Component->GetName().ToString().data());
 
 			// 빌보드 컴포넌트는 Octree에 삽입하지 않음
 			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)

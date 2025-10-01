@@ -62,7 +62,7 @@ bool UFontRenderer::Initialize()
         return false;
     }
 
-    UE_LOG_SUCCESS("FontRenderer: 초기화 완료");
+    // FontRenderer 초기화 완료
     return true;
 }
 
@@ -461,13 +461,10 @@ bool UFontRenderer::CreateVertexBufferForText(const char* Text, float StartX, fl
     if (!vertices.empty())
     {
         const FFontVertex& firstVertex = vertices[0];
-        UE_LOG("FontRenderer Debug: 첫 번째 정점 - 위치: (%.2f, %.2f, %.2f), UV: (%.4f, %.4f), 문자: %c (%d)",
-            firstVertex.Position.X, firstVertex.Position.Y, firstVertex.Position.Z,
-            firstVertex.TexCoord.X, firstVertex.TexCoord.Y,
-            (char)firstVertex.CharIndex, firstVertex.CharIndex);
+        // Debug: 첫 번째 정점 정보
     }
 
-    UE_LOG_SUCCESS("FontRenderer: 정점 버퍼 생성 완료 ('%s', 정점 개수: %d)", Text, VertexCount);
+    // 정점 버퍼 생성 완료
     return true;
 }
 
@@ -484,14 +481,14 @@ bool UFontRenderer::CreateShaders()
     };
 
     // 버텍스 셰이더 및 입력 레이아웃 생성
-    UE_LOG("FontRenderer: 셰이더 컴파일 시작...");
+    // 셰이더 컴파일 시작
     Renderer.CreateVertexShaderAndInputLayout(
         L"Asset/Shader/ShaderFont.hlsl",
         layoutDesc,
         &FontVertexShader,
         &FontInputLayout
     );
-    UE_LOG("FontRenderer: 셰이더 컴파일 완료");
+    // 셰이더 컴파일 완료
 
     if (!FontVertexShader || !FontInputLayout)
     {
@@ -507,7 +504,7 @@ bool UFontRenderer::CreateShaders()
         return false;
     }
 
-    UE_LOG_SUCCESS("FontRenderer: 셰이더 생성 완료");
+    // 셰이더 생성 완뢬
     return true;
 }
 
@@ -517,7 +514,7 @@ bool UFontRenderer::LoadFontTexture()
     UAssetManager& ResourceManager = UAssetManager::GetInstance();
 
     // DejaVu Sans Mono.png 폰트 아틀라스 로드
-    UE_LOG("FontRenderer: 폰트 텍스처 로드 시도: Asset/Texture/DejaVu Sans Mono.png");
+    // 폰트 텍스처 로드
     auto TextureComPtr = ResourceManager.LoadTexture("Asset/Texture/DejaVu Sans Mono.png");
     FontAtlasTexture = TextureComPtr.Get(); // ComPtr에서 원시 포인터 추출
 
@@ -526,9 +523,9 @@ bool UFontRenderer::LoadFontTexture()
         UE_LOG_ERROR("FontRenderer: 폰트 텍스처 로드 실패");
         return false;
     }
-    UE_LOG("FontRenderer: 폰트 텍스처 로드 성공 (Pointer: %p)", FontAtlasTexture);
+    // 폰트 텍스처 로드 성공
 
-    UE_LOG_SUCCESS("FontRenderer: 폰트 텍스처 로드 완료");
+    // 폰트 텍스처 로드 완료
     return true;
 }
 
@@ -555,7 +552,7 @@ bool UFontRenderer::CreateSamplerState()
         return false;
     }
 
-    UE_LOG_SUCCESS("FontRenderer: 샘플러 스테이트 생성 완료");
+    // 샘플러 스테이트 생성 완료
     return true;
 }
 
@@ -578,6 +575,6 @@ bool UFontRenderer::CreateConstantBuffer()
         return false;
     }
 
-    UE_LOG_SUCCESS("FontRenderer: 상수 버퍼 생성 완료");
+    // 상수 버퍼 생성 완료
     return true;
 }

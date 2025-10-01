@@ -290,10 +290,6 @@ int FOctree::FOctreeNode::GetBestChildIndex(const FAABB& ObjectBounds) const
 	 * 객체 중심점이 속하는 자식의 loose bounds에 완전히 포함되는지 확인
 	 */
 
-	 // Debug logging for first few calls
-	static int DebugCallCount = 0;
-	bool bShouldLog = (DebugCallCount < 10);
-
 	const FVector ParentCenter = (Bounds.Min + Bounds.Max) * 0.5f;
 	const FVector ObjectCenter = (ObjectBounds.Min + ObjectBounds.Max) * 0.5f;
 
@@ -307,22 +303,10 @@ int FOctree::FOctreeNode::GetBestChildIndex(const FAABB& ObjectBounds) const
 	FAABB ChildLooseBounds = GetChildLooseBounds(ChildIndex);
 	if (ChildLooseBounds.Contains(ObjectBounds))
 	{
-		if (bShouldLog)
-		{
-			UE_LOG("GetBestChildIndex [%d]: Object center (%.3f,%.3f,%.3f) -> Child %d",
-				DebugCallCount, ObjectCenter.X, ObjectCenter.Y, ObjectCenter.Z, ChildIndex);
-			DebugCallCount++;
-		}
 		return ChildIndex;
 	}
 
 	// 완전히 포함되지 않으면 부모 노드에 저장
-	if (bShouldLog)
-	{
-		UE_LOG("GetBestChildIndex [%d]: Object doesn't fit in target child %d - staying in parent",
-			DebugCallCount, ChildIndex);
-		DebugCallCount++;
-	}
 	return -1;
 }
 

@@ -34,7 +34,6 @@ void UUIManager::Initialize()
 		return;
 	}
 
-	UE_LOG("UIManager: UI System 초기화 진행 중...");
 
 	UIWindows.clear();
 	FocusedWindow = nullptr;
@@ -42,7 +41,6 @@ void UUIManager::Initialize()
 
 	bIsInitialized = true;
 
-	UE_LOG("UIManager: UI System 초기화 성공");
 }
 
 /**
