@@ -5,6 +5,7 @@
 #include "Core/Public/AppWindow.h"
 #include "Manager/Input/Public/InputManager.h"
 #include "Manager/Level/Public/LevelManager.h"
+#include "Level/Public/Level.h"
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Manager/Time/Public/TimeManager.h"
 #include "Manager/World/Public/WorldManager.h"
@@ -112,7 +113,8 @@ int FClientApp::InitializeSystem() const
 		ULevelManager::GetInstance().CreateNewLevel();
 	}
 
-	// LevelManager의 Level을 WorldManager에 연결
+	// LevelManager의 Level을 WorldManager에 연결 (이제 SwitchToLevel에서 자동 처리됨)
+	// 초기 로딩을 위해 한 번만 호출
 	ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
 	if (CurrentLevel)
 	{

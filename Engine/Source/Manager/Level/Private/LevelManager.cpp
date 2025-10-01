@@ -6,6 +6,7 @@
 #include "Utility/Public/JsonSerializer.h"
 #include "Editor/Public/Editor.h"
 #include "Manager/Config/Public/ConfigManager.h"
+#include "Manager/World/Public/WorldManager.h"
 
 #include <json.hpp>
 
@@ -198,6 +199,8 @@ void ULevelManager::SwitchToLevel(ULevel* InNewLevel)
 	if (CurrentLevel)
 	{
 		CurrentLevel->Init();
+		// WorldManager에도 새 레벨 알림
+		UWorldManager::GetInstance().SetCurrentLevel(CurrentLevel);
 		UE_LOG("LevelManager: Switched to Level '%s'", CurrentLevel->GetName().ToString().c_str());
 	}
 	else
