@@ -305,7 +305,13 @@ void URenderer::Update()
 		RenderLevel(ViewportClient);
 
 		// 5. 에디터를 렌더링합니다.
-		ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
+		// TODO: World 시스템 구현 시 World->ShouldRenderEditor()로 대체
+		// 현재는 PIE Viewport인 경우 Editor 렌더링 스킵 (임시 구현)
+		bool bIsPIEViewport = ViewportClient.RenderTargetLevel != nullptr;
+		if (!bIsPIEViewport)
+		{
+			ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
+		}
 	}
 
 	// HZB 생성 (매 프레임 깊이 버퍼 완료 후)
