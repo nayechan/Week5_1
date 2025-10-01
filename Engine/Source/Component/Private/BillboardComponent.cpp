@@ -8,7 +8,14 @@ IMPLEMENT_CLASS(UBillboardComponent, UPrimitiveComponent)
 
 UBillboardComponent::UBillboardComponent()
 {
+	UAssetManager& ResourceManager = UAssetManager::GetInstance();
 	Type = EPrimitiveType::Billboard;
+	Vertices = ResourceManager.GetVertexData(Type);
+	VertexBuffer = ResourceManager.GetVertexbuffer(Type);
+	NumVertices = ResourceManager.GetNumVertices(Type);
+	RenderState.CullMode = ECullMode::None;
+	RenderState.FillMode = EFillMode::Solid;
+	BoundingBox = &ResourceManager.GetAABB(Type);
 }
 
 UBillboardComponent::~UBillboardComponent()

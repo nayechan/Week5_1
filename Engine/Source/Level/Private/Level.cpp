@@ -257,16 +257,17 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 			// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
 			if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
 			{
-				if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::Billboard)
-				{
-					LevelPrimitiveComponents.push_back(PrimitiveComponent);
-				}
-				else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard && (ShowFlags & EEngineShowFlags::SF_BillboardText) && (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
-				{
-					//TObjectPtr<UBillBoardComponent> BillBoard = Cast<UBillBoardComponent>(PrimitiveComponent);
-					//BillBoard->UpdateRotationMatrix();
-					LevelPrimitiveComponents.push_back(PrimitiveComponent);
-				}
+				//if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::Billboard)
+				//{
+				//	LevelPrimitiveComponents.push_back(PrimitiveComponent);
+				//}
+				//else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard && (ShowFlags & EEngineShowFlags::SF_BillboardText) && (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
+				//{
+				//	//TObjectPtr<UBillBoardComponent> BillBoard = Cast<UBillBoardComponent>(PrimitiveComponent);
+				//	//BillBoard->UpdateRotationMatrix();
+				//	LevelPrimitiveComponents.push_back(PrimitiveComponent);
+				//}
+				LevelPrimitiveComponents.push_back(PrimitiveComponent);
 			}
 		}
 	}

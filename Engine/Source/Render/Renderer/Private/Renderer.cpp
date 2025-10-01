@@ -550,7 +550,7 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 				};
 
 				// Create a transient vertex buffer for the quad
-				ID3D11Buffer* VB = CreateVertexBuffer(QuadVerts, sizeof(QuadVerts));
+				ID3D11Buffer* VB = BillboardComp->GetVertexBuffer();
 				if (VB)
 				{
 					// Bind and draw (triangle list, 6 verts)
@@ -558,7 +558,7 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 					Pipeline->Draw(6, 0);
 
 					// cleanup transient buffer
-					ReleaseVertexBuffer(VB);
+					// ReleaseVertexBuffer(VB);
 				}
 			}
 			break;
