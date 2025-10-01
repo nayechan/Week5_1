@@ -10,6 +10,7 @@
 #include "Render/UI/Widget/Public/StaticMeshComponentWidget.h"
 #include "Utility/Public/JsonSerializer.h"
 #include "Texture/Public/Texture.h"
+#include "Manager/Level/Public/LevelManager.h"
 
 #include <json.hpp>
 
@@ -117,6 +118,12 @@ void UStaticMeshComponent::SetStaticMesh(const FName& InObjPath)
 		RenderState.CullMode = ECullMode::Back;
 		RenderState.FillMode = EFillMode::Solid;
 		BoundingBox = &AssetManager.GetStaticMeshAABB(InObjPath);
+
+		MarkWorldAABBDirty();
+		if (UEditor* Editor = ULevelManager::GetInstance().GetEditor())
+		{
+			Editor->MarkPrimitiveDirty(this);
+		}
 	}
 }
 

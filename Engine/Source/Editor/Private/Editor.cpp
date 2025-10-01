@@ -453,6 +453,14 @@ void UEditor::MarkActorPrimitivesDirty(AActor* InActor)
 	}
 }
 
+void UEditor::MarkPrimitiveDirty(UPrimitiveComponent* InPrim)
+{
+	if (InPrim)
+	{
+		PendingDirtyPrims.push_back(InPrim);
+	}
+}
+
 void UEditor::ProcessMouseInput(ULevel* InLevel)
 {
 	// 선택된 뷰포트의 정보들을 가져옵니다.
@@ -675,10 +683,10 @@ void UEditor::EnsureBVHUpToDate(ULevel* InLevel)
 	}
 
 	// 3) 주기적 전체 리핏(품질 유지용)
-	if ((++SceneBVHRefitTick % 60) == 0)
+	/*if ((++SceneBVHRefitTick % 60) == 0)
 	{
 		SceneBVH.Refit();
-	}
+	}*/
 
 	// 4) 빌드 직후 프레임에서 카메라 생겼으면 피킹 워밍업
 	if (!bPickingWarmed)
