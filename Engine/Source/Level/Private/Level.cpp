@@ -290,23 +290,13 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 		// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
 		if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
 		{
-			if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::BillBoard)
-			{
+				LevelPrimitiveComponents.push_back(PrimitiveComponent);
 				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
 				UE_LOG("  -> Added to BVH: %s (Owner: %s)",
 					   PrimitiveComponent->GetName().ToString().c_str(),
 					   PrimitiveComponent->GetOwner() ? PrimitiveComponent->GetOwner()->GetName().ToString().c_str() : "None");
-			}
-			else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard &&
-					 (ShowFlags & EEngineShowFlags::SF_BillboardText) &&
-					 (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
-			{
-				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
-				UE_LOG("  -> Added Billboard to BVH: %s", PrimitiveComponent->GetName().ToString().c_str());
-			}
 		}
-		else
-		{
+
 			UE_LOG("  -> Skipping invisible or filtered component: %s (Visible: %d, ShowFlags: %llu)",
 				   PrimitiveComponent->GetName().ToString().c_str(),
 				   PrimitiveComponent->IsVisible(),

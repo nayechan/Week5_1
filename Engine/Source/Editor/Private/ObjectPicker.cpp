@@ -33,11 +33,10 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 
 	for (UPrimitiveComponent* Primitive : Candidate)
 	{
-		if (Primitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+		/*if (Primitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 		{
 			continue;
-		}
-		FMatrix ModelMat = Primitive->GetWorldTransform();
+		FMatrix ModelMat = Primitive->GetWorldTransformMatrix();
 		FRay ModelRay = GetModelRay(WorldRay, Primitive);
 		if (IsRayPrimitiveCollided(InActiveCamera, ModelRay, Primitive, ModelMat, &PrimitiveDistance))
 			//Ray와 Primitive가 충돌했다면 거리 테스트 후 가까운 Actor Picking
@@ -56,7 +55,7 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 
 bool UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const FRay& WorldRay, UPrimitiveComponent* Primitive, float* OutDistance)
 {
-	if (!Primitive || Primitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+	if (!Primitive)
 	{
 		if (OutDistance)
 		{

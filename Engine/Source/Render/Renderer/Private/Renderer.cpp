@@ -27,6 +27,7 @@
 #include "Render/Culling/Public/OcclusionCuller.h"
 #include <immintrin.h>
 #include "Component/Public/TextRenderComponent.h"
+#include "Component/Public/BillboardComponent.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
 
@@ -462,10 +463,11 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 					{
 						lodCounts[LodIndex]++;
 					}
-				}
-				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-				break;
-			}
+                }
+                RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+			    break;
+            }
+        }
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -476,17 +478,14 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옵트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
+		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, nullptr, &Context, RenderCallback, nullptr);
 	}
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	
 	// PIE 모드에서 동적 프리미티브 디버그 로그
-	if (bIsPIEWorld)
-	{
-		printf("PIE Mode: Rendering %d dynamic primitives\n", static_cast<int32>(DynamicPrimitives.size()));
-	}
-	
+
+	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	uint32 dynamicRenderedCount = 0;
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{

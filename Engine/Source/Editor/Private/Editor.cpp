@@ -607,7 +607,7 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			{
 				if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
 				{
-					if (Prim->GetPrimitiveType() != EPrimitiveType::BillBoard)
+					if (Prim->GetPrimitiveType() != EPrimitiveType::Billboard)
 					{
 						ULevelManager::GetInstance().GetCurrentLevel()->MoveToDynamic(Prim);
 					}

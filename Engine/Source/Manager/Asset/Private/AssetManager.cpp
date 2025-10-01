@@ -31,6 +31,7 @@ void UAssetManager::Initialize()
 	VertexDatas.emplace(EPrimitiveType::Sphere, &VerticesSphere);
 	VertexDatas.emplace(EPrimitiveType::Triangle, &VerticesTriangle);
 	VertexDatas.emplace(EPrimitiveType::Square, &VerticesSquare);
+	VertexDatas.emplace(EPrimitiveType::Billboard, &VerticesBillboard);
 	VertexDatas.emplace(EPrimitiveType::Torus, &VerticesTorus);
 	VertexDatas.emplace(EPrimitiveType::Arrow, &VerticesArrow);
 	VertexDatas.emplace(EPrimitiveType::CubeArrow, &VerticesCubeArrow);
@@ -51,6 +52,8 @@ void UAssetManager::Initialize()
 		VerticesTriangle.data(), static_cast<int>(VerticesTriangle.size() * sizeof(FNormalVertex))));
 	VertexBuffers.emplace(EPrimitiveType::Square, Renderer.CreateVertexBuffer(
 		VerticesSquare.data(), static_cast<int>(VerticesSquare.size() * sizeof(FNormalVertex))));
+	VertexBuffers.emplace(EPrimitiveType::Billboard, Renderer.CreateVertexBuffer(
+		VerticesBillboard.data(), static_cast<int>(VerticesBillboard.size() * sizeof(FNormalVertex))));
 	VertexBuffers.emplace(EPrimitiveType::Torus, Renderer.CreateVertexBuffer(
 		VerticesTorus.data(), static_cast<int>(VerticesTorus.size() * sizeof(FNormalVertex))));
 	VertexBuffers.emplace(EPrimitiveType::Arrow, Renderer.CreateVertexBuffer(
@@ -66,6 +69,7 @@ void UAssetManager::Initialize()
 	NumVertices.emplace(EPrimitiveType::Sphere, static_cast<uint32>(VerticesSphere.size()));
 	NumVertices.emplace(EPrimitiveType::Triangle, static_cast<uint32>(VerticesTriangle.size()));
 	NumVertices.emplace(EPrimitiveType::Square, static_cast<uint32>(VerticesSquare.size()));
+	NumVertices.emplace(EPrimitiveType::Billboard, static_cast<uint32>(VerticesBillboard.size()));
 	NumVertices.emplace(EPrimitiveType::Torus, static_cast<uint32>(VerticesTorus.size()));
 	NumVertices.emplace(EPrimitiveType::Arrow, static_cast<uint32>(VerticesArrow.size()));
 	NumVertices.emplace(EPrimitiveType::CubeArrow, static_cast<uint32>(VerticesCubeArrow.size()));
