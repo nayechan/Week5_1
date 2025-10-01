@@ -34,9 +34,13 @@ inline uint64 operator&(uint64 lhs, EEngineShowFlags rhs)
 	return lhs & static_cast<uint64>(rhs);
 }
 
+UCLASS()
 class ULevel :
 	public UObject
 {
+	GENERATED_BODY()
+	DECLARE_CLASS(ULevel, UObject)
+
 public:
 	ULevel();
 	ULevel(const FName& InName);
@@ -49,6 +53,11 @@ public:
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
+	// PIE/World에서 요구하는 인터페이스
+	const TArray<AActor*>& GetActors() const { return Actors; }
+	TArray<AActor*>& GetActors() { return Actors; }
+
+	// 기존 인터페이스 유지 (호환성)
 	const TArray<TObjectPtr<AActor>>& GetLevelActors() const { return LevelActors; }
 
 	const TArray<TObjectPtr<UPrimitiveComponent>>& GetLevelPrimitiveComponents() const
@@ -77,6 +86,10 @@ public:
 	void MoveToDynamic(UPrimitiveComponent* InPrim);
 
 private:
+	// PIE/World에서 사용하는 Actors 배열
+	TArray<AActor*> Actors;
+
+	// 기존 인터페이스 유지
 	TArray<TObjectPtr<AActor>> LevelActors;
 	TArray<TObjectPtr<UPrimitiveComponent>> LevelPrimitiveComponents;	// 액터의 하위 컴포넌트는 액터에서 관리&해제됨
 

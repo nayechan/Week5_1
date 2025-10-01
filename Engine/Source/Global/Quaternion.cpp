@@ -1,8 +1,5 @@
 #include "pch.h"
 #include "Global/Quaternion.h"
-#include <immintrin.h>  // SSE/AVX 지원
-#include <xmmintrin.h>  // SSE
-#include <emmintrin.h>  // SSE2
 
 FQuaternion FQuaternion::FromAxisAngle(const FVector& Axis, float AngleRad)
 {
@@ -71,27 +68,15 @@ FQuaternion FQuaternion::operator*(const FQuaternion& Q) const
 	);
 }
 
-/**
- * @brief Quaternion 정규화 (SIMD 최적화)
- */
 void FQuaternion::Normalize()
 {
-	// SIMD를 사용한 최적화
-	__m128 q = _mm_loadu_ps(&X);  // X, Y, Z, W 로드 (unaligned load로 안전성 확보)
-	__m128 squared = _mm_mul_ps(q, q);
-	__m128 sum = _mm_hadd_ps(squared, squared);
-	sum = _mm_hadd_ps(sum, sum);
-	
-	// 길이가 0에 가까우면 정규화 방지
-	float lengthSq = _mm_cvtss_f32(sum);
-	if (lengthSq > 0.00000001f)
+	float mag = sqrtf(X * X + Y * Y + Z * Z + W * W);
+	if (mag > 0.0001f)
 	{
-		__m128 invLength = _mm_rsqrt_ss(sum);  // 떠른소수점 역제곱근 근사
-		invLength = _mm_shuffle_ps(invLength, invLength, _MM_SHUFFLE(0, 0, 0, 0));
-		q = _mm_mul_ps(q, invLength);
-		
-		// 결과를 다시 할당
-		_mm_storeu_ps(&X, q);
+		X /= mag;
+		Y /= mag;
+		Z /= mag;
+		W /= mag;
 	}
 }
 

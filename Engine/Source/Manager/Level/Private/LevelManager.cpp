@@ -6,6 +6,7 @@
 #include "Utility/Public/JsonSerializer.h"
 #include "Editor/Public/Editor.h"
 #include "Manager/Config/Public/ConfigManager.h"
+#include "Manager/World/Public/WorldManager.h"
 
 #include <json.hpp>
 
@@ -99,41 +100,56 @@ bool ULevelManager::SaveCurrentLevel(const FString& InFilePath) const
 	}
 }
 
-bool ULevelManager::LoadLevel(const FString& InFilePath)
+ULevel* ULevelManager::CreateLevel(const FString& InFilePath)
 {
-	UE_LOG("LevelManager: Loading Level: %s", InFilePath.data());
+	UE_LOG("LevelManager: Creating Level From: %s", InFilePath.data());
 
 	path FilePath(InFilePath);
 	FString LevelName = FilePath.stem().string();
 
-	TObjectPtr<ULevel> NewLevel = TObjectPtr(new ULevel(LevelName));
+	ULevel* NewLevel = new ULevel(LevelName);
 	try
 	{
 		JSON LevelJsonData;
 		if (FJsonSerializer::LoadJsonFromFile(LevelJsonData, InFilePath))
 		{
-			UConfigManager::GetInstance().SetLastUsedLevelPath(InFilePath);	// 재시작 시 다시 열기 위해 저장
-
 			NewLevel->Serialize(true, LevelJsonData);
 		}
 		else
 		{
 			UE_LOG("LevelManager: Failed To Load Level From: %s", InFilePath.c_str());
 			delete NewLevel;
-			return false;
+			return nullptr;
 		}
 	}
 	catch (const exception& InException)
 	{
 		UE_LOG("LevelManager: Exception During Load: %s", InException.what());
 		delete NewLevel;
+		return nullptr;
+	}
+
+	UE_LOG("LevelManager: Level '%s' Created Successfully", LevelName.c_str());
+	return NewLevel;
+}
+
+bool ULevelManager::LoadLevel(const FString& InFilePath)
+{
+	UE_LOG("LevelManager: Loading Level: %s", InFilePath.data());
+
+	ULevel* NewLevel = CreateLevel(InFilePath);
+	if (!NewLevel)
+	{
 		return false;
 	}
+
+	// 재시작 시 다시 열기 위해 저장
+	UConfigManager::GetInstance().SetLastUsedLevelPath(InFilePath);
 
 	// 새 레벨을 등록하고 활성 레벨로 전환합니다.
 	SwitchToLevel(NewLevel);
 
-	UE_LOG("LevelManager: Level '%s' (으)로 레벨을 교체 완료했습니다", LevelName.c_str());
+	UE_LOG("LevelManager: Level '%s' (으)로 레벨을 교체 완료했습니다", NewLevel->GetName().ToString().c_str());
 	return true;
 }
 
@@ -159,6 +175,7 @@ path ULevelManager::GenerateLevelFilePath(const FString& InLevelName)
 	return LevelDirectory / FileName;
 }
 
+
 // =================================================================
 // Private Helper Functions
 // =================================================================
@@ -182,6 +199,8 @@ void ULevelManager::SwitchToLevel(ULevel* InNewLevel)
 	if (CurrentLevel)
 	{
 		CurrentLevel->Init();
+		// WorldManager에도 새 레벨 알림
+		UWorldManager::GetInstance().SetCurrentLevel(CurrentLevel);
 		UE_LOG("LevelManager: Switched to Level '%s'", CurrentLevel->GetName().ToString().c_str());
 	}
 	else

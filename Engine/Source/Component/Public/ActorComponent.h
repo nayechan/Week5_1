@@ -1,6 +1,9 @@
 #pragma once
 #include "Core/Public/Object.h"
 
+// Forward declaration
+namespace EEndPlayReason { enum Type; }
+
 class AActor;
 class UWidget;
 
@@ -19,8 +22,12 @@ public:
 	}*/
 
 	virtual void BeginPlay();
-	virtual void TickComponent();
-	virtual void EndPlay();
+	virtual void TickComponent(float DeltaTime);
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason);
+
+	// Tick 상태 관리
+	bool IsComponentTickEnabled() const { return bComponentTickEnabled; }
+	void SetComponentTickEnabled(bool bEnabled) { bComponentTickEnabled = bEnabled; }
 
 	EComponentType GetComponentType() { return ComponentType; }
 
@@ -33,6 +40,8 @@ public:
 
 protected:
 	EComponentType ComponentType;
+	bool bComponentTickEnabled = true;
+
 private:
 	AActor* Owner;
 };

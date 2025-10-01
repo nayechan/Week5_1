@@ -83,9 +83,9 @@ FMatrix FMatrix::operator*(const FMatrix& InOtherMatrix) const
 	// SIMD를 사용한 4x4 행렬 곱셈 최적화
 	for (int32 i = 0; i < 4; ++i)
 	{
-		// 각 행을 SIMD 레지스터에 로드 (aligned load로 최대 성능 확보)
+		// 각 행을 SIMD 레지스터에 로드
 		__m128 row = _mm_load_ps(&Data[i][0]);
-		
+
 		for (int32 j = 0; j < 4; ++j)
 		{
 			// 다른 행렬의 열을 SIMD 레지스터에 로드
@@ -95,12 +95,12 @@ FMatrix FMatrix::operator*(const FMatrix& InOtherMatrix) const
 				InOtherMatrix.Data[1][j],
 				InOtherMatrix.Data[0][j]
 			);
-			
+
 			// 벡터 내적 계산
 			__m128 mul = _mm_mul_ps(row, col);
 			__m128 sum = _mm_hadd_ps(mul, mul);
 			sum = _mm_hadd_ps(sum, sum);
-			
+
 			Result.Data[i][j] = _mm_cvtss_f32(sum);
 		}
 	}
@@ -113,69 +113,54 @@ void FMatrix::operator*=(const FMatrix& InOtherMatrix)
 	*this = (*this) * InOtherMatrix;
 }
 
-/**
-* @brief 행렬에 스칼라를 곱한 새로운 행렬을 반환하는 연산자 함수 (SIMD 최적화)
-*/
 FMatrix FMatrix::operator*(float Scalar) const
 {
 	FMatrix result;
-	__m128 scalarVec = _mm_set1_ps(Scalar);  // 스칼라 값을 4개 복사한 벡터 생성
-	
 	for (int i = 0; i < 4; ++i)
 	{
-		// 한 번에 한 행(4개 요소)을 처리 (aligned load로 최대 성능 확보)
-		__m128 row = _mm_load_ps(&Data[i][0]);
-		__m128 result_row = _mm_mul_ps(row, scalarVec);
-		_mm_store_ps(&result.Data[i][0], result_row);
+		for (int j = 0; j < 4; ++j)
+		{
+			result.Data[i][j] = Data[i][j] * Scalar;
+		}
 	}
 	return result;
 }
 
-/**
-* @brief 행렬에 스칼라를 곱한 결과를 자신에게 적용하는 연산자 함수 (SIMD 최적화)
-*/
 void FMatrix::operator*=(float Scalar)
 {
-	__m128 scalarVec = _mm_set1_ps(Scalar);  // 스칼라 값을 4개 복사한 벡터 생성
-	
 	for (int i = 0; i < 4; ++i)
 	{
-		// 한 번에 한 행(4개 요소)을 처리 (aligned load로 최대 성능 확보)
-		__m128 row = _mm_load_ps(&Data[i][0]);
-		__m128 result_row = _mm_mul_ps(row, scalarVec);
-		_mm_store_ps(&Data[i][0], result_row);
+		for (int j = 0; j < 4; ++j)
+		{
+			Data[i][j] *= Scalar;
+		}
 	}
 }
 
 /**
-* @brief 두 행렬합을 진행한 행렬을 반환하는 연산자 함수 (SIMD 최적화)
+* @brief 두 행렬합을 진행한 행렬을 반환하는 연산자 함수
 */
 FMatrix FMatrix::operator+(const FMatrix& InOtherMatrix) const
 {
 	FMatrix Result;
 	for (int32 i = 0; i < 4; ++i)
 	{
-		// 한 번에 한 행(4개 요소)을 처리 (aligned load로 최대 성능 확보)
-		__m128 row1 = _mm_load_ps(&Data[i][0]);
-		__m128 row2 = _mm_load_ps(&InOtherMatrix.Data[i][0]);
-		__m128 result_row = _mm_add_ps(row1, row2);
-		_mm_store_ps(&Result.Data[i][0], result_row);
+		for (int32 j = 0; j < 4; ++j)
+		{
+			Result.Data[i][j] = Data[i][j] + InOtherMatrix.Data[i][j];
+		}
 	}
 	return Result;
 }
 
-/**
-* @brief 두 행렬합을 진행한 결과를 자신에게 적용하는 연산자 함수 (SIMD 최적화)
-*/
 void FMatrix::operator+=(const FMatrix& InOtherMatrix)
 {
 	for (int32 i = 0; i < 4; ++i)
 	{
-		// 한 번에 한 행(4개 요소)을 처리 (aligned load로 최대 성능 확보)
-		__m128 row1 = _mm_load_ps(&Data[i][0]);
-		__m128 row2 = _mm_load_ps(&InOtherMatrix.Data[i][0]);
-		__m128 result_row = _mm_add_ps(row1, row2);
-		_mm_store_ps(&Data[i][0], result_row);
+		for (int32 j = 0; j < 4; ++j)
+		{
+			Data[i][j] += InOtherMatrix.Data[i][j];
+		}
 	}
 }
 
@@ -334,88 +319,40 @@ FMatrix FMatrix::GetModelMatrixInverse(const FVector& Location, const FVector& R
 	return modelMatrixInverse * FMatrix::DxToUE;
 }
 
-/**
-* @brief 4D 벡터와 행렬의 곱셈 (SIMD 최적화)
-*/
 FVector4 FMatrix::VectorMultiply(const FVector4& v, const FMatrix& m)
 {
 	FVector4 result = {};
-	
-	// 벡터를 SIMD 레지스터에 로드
-	__m128 vec = _mm_set_ps(v.W, v.Z, v.Y, v.X);  // W, Z, Y, X 순서로 로드
-	
-	// 각 행과 벡터의 내적을 계산
-	for (int i = 0; i < 4; ++i)
-	{
-		__m128 row = _mm_load_ps(&m.Data[0][i]);  // 열을 행으로 로드 (전치된 방식)
-		__m128 col = _mm_set_ps(m.Data[3][i], m.Data[2][i], m.Data[1][i], m.Data[0][i]);
-		__m128 mul = _mm_mul_ps(vec, col);
-		__m128 sum = _mm_hadd_ps(mul, mul);
-		sum = _mm_hadd_ps(sum, sum);
-		
-		// 결과 저장
-		((float*)&result)[i] = _mm_cvtss_f32(sum);
-	}
-	
+	result.X = (v.X * m.Data[0][0]) + (v.Y * m.Data[1][0]) + (v.Z * m.Data[2][0]) + (v.W * m.Data[3][0]);
+	result.Y = (v.X * m.Data[0][1]) + (v.Y * m.Data[1][1]) + (v.Z * m.Data[2][1]) + (v.W * m.Data[3][1]);
+	result.Z = (v.X * m.Data[0][2]) + (v.Y * m.Data[1][2]) + (v.Z * m.Data[2][2]) + (v.W * m.Data[3][2]);
+	result.W = (v.X * m.Data[0][3]) + (v.Y * m.Data[1][3]) + (v.Z * m.Data[2][3]) + (v.W * m.Data[3][3]);
+
+
 	return result;
 }
 
-/**
-* @brief 3D 벡터와 행렬의 곱셈 (SIMD 최적화)
-*/
 FVector FMatrix::VectorMultiply(const FVector& v, const FMatrix& m)
 {
 	FVector result = {};
-	
-	// 벡터를 SIMD 레지스터에 로드 (W=0으로 설정)
-	__m128 vec = _mm_set_ps(0.0f, v.Z, v.Y, v.X);
-	
-	// 각 열과 벡터의 내적을 계산 (3D이므로 3개만)
-	for (int i = 0; i < 3; ++i)
-	{
-		__m128 col = _mm_set_ps(0.0f, m.Data[2][i], m.Data[1][i], m.Data[0][i]);
-		__m128 mul = _mm_mul_ps(vec, col);
-		__m128 sum = _mm_hadd_ps(mul, mul);
-		sum = _mm_hadd_ps(sum, sum);
-		
-		// 결과 저장
-		((float*)&result)[i] = _mm_cvtss_f32(sum);
-	}
-	
+	result.X = (v.X * m.Data[0][0]) + (v.Y * m.Data[1][0]) + (v.Z * m.Data[2][0]);
+	result.Y = (v.X * m.Data[0][1]) + (v.Y * m.Data[1][1]) + (v.Z * m.Data[2][1]);
+	result.Z = (v.X * m.Data[0][2]) + (v.Y * m.Data[1][2]) + (v.Z * m.Data[2][2]);
+	//result.W = (v.X * m.Data[0][3]) + (v.Y * m.Data[1][3]) + (v.Z * m.Data[2][3]) + (v.W * m.Data[3][3]);
+
+
 	return result;
 }
 
-/**
-* @brief 행렬 전치 (SIMD 최적화)
-*/
 FMatrix FMatrix::Transpose() const
 {
 	FMatrix result = {};
-	
-	// 4개 행을 SIMD 레지스터로 로드
-	__m128 row0 = _mm_load_ps(&Data[0][0]);
-	__m128 row1 = _mm_load_ps(&Data[1][0]);
-	__m128 row2 = _mm_load_ps(&Data[2][0]);
-	__m128 row3 = _mm_load_ps(&Data[3][0]);
-	
-	// 전치를 위한 SIMD 연산
-	// 단계 1: 각 요소들을 섭계
-	__m128 tmp0 = _mm_unpacklo_ps(row0, row1);  // [a00 a10 a01 a11]
-	__m128 tmp1 = _mm_unpacklo_ps(row2, row3);  // [a20 a30 a21 a31]
-	__m128 tmp2 = _mm_unpackhi_ps(row0, row1);  // [a02 a12 a03 a13]
-	__m128 tmp3 = _mm_unpackhi_ps(row2, row3);  // [a22 a32 a23 a33]
-	
-	// 단계 2: 최종 전치 결과 생성
-	__m128 col0 = _mm_movelh_ps(tmp0, tmp1);   // [a00 a10 a20 a30]
-	__m128 col1 = _mm_movehl_ps(tmp1, tmp0);   // [a01 a11 a21 a31]
-	__m128 col2 = _mm_movelh_ps(tmp2, tmp3);   // [a02 a12 a22 a32]
-	__m128 col3 = _mm_movehl_ps(tmp3, tmp2);   // [a03 a13 a23 a33]
-	
-	// 결과 저장
-	_mm_store_ps(&result.Data[0][0], col0);
-	_mm_store_ps(&result.Data[1][0], col1);
-	_mm_store_ps(&result.Data[2][0], col2);
-	_mm_store_ps(&result.Data[3][0], col3);
-	
+	for (int i = 0; i < 4; i++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			result.Data[i][j] = Data[j][i];
+		}
+	}
+
 	return result;
 }
