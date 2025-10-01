@@ -534,10 +534,19 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 				continue;
 			}
 
-			FVector Min, Max;
+			// CRITICAL: Initialize Min/Max to safe defaults before GetWorldAABB
+			FVector Min(0.0f, 0.0f, 0.0f), Max(0.0f, 0.0f, 0.0f);
 			PrimitiveComponent->GetWorldAABB(Min, Max);
-			FAABB WorldBounds(Min, Max);
 
+			// Skip if bounding box is invalid (GetWorldAABB returns without setting values)
+			if (Min.X == 0.0f && Min.Y == 0.0f && Min.Z == 0.0f &&
+			    Max.X == 0.0f && Max.Y == 0.0f && Max.Z == 0.0f)
+			{
+				UE_LOG("    -> Warning: Invalid bounding box, skipping Octree insertion");
+				continue;
+			}
+
+			FAABB WorldBounds(Min, Max);
 			StaticOctree.Insert(PrimitiveComponent, WorldBounds);
 			UE_LOG("    -> Added to Octree");
 		}

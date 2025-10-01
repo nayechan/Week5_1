@@ -112,3 +112,33 @@ void UPrimitiveComponent::UpdateOcclusionState(bool bIsOccludedThisFrame) const
 		bShouldCullForOcclusion = false;
 	}
 }
+
+UObject* UPrimitiveComponent::Duplicate()
+{
+	// Call parent class Duplicate (SceneComponent)
+	USceneComponent* NewSceneComponent = static_cast<USceneComponent*>(USceneComponent::Duplicate());
+	UPrimitiveComponent* NewComponent = Cast<UPrimitiveComponent>(NewSceneComponent);
+
+	if (!NewComponent)
+	{
+		return NewSceneComponent;
+	}
+
+	// Copy PrimitiveComponent-specific properties
+	// NOTE: Vertices, Indices, VertexBuffer, IndexBuffer, BoundingBox are all pointers
+	// to AssetManager-owned resources, so they should be set by the constructor
+	// when NewObject creates the component. We don't need to copy them manually.
+
+	NewComponent->Color = Color;
+	NewComponent->Topology = Topology;
+	NewComponent->RenderState = RenderState;
+	NewComponent->Type = Type;
+	NewComponent->bVisible = bVisible;
+
+	// Reset cached data
+	NewComponent->bWorldAABBDirty = true;
+	NewComponent->ConsecutiveOccludedFrames = 0;
+	NewComponent->bShouldCullForOcclusion = false;
+
+	return NewComponent;
+}

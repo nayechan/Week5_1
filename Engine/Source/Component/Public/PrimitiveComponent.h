@@ -42,6 +42,9 @@ public:
 	bool ShouldCullForOcclusion() const { return bShouldCullForOcclusion; }
 	int GetConsecutiveOccludedFrames() const { return ConsecutiveOccludedFrames; }
 
+	// Duplication
+	virtual UObject* Duplicate() override;
+
 protected:
 	const TArray<FNormalVertex>* Vertices = nullptr;
 	const TArray<uint32>* Indices = nullptr;
