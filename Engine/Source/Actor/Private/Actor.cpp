@@ -227,11 +227,6 @@ static void CollectSceneComponentChildren(USceneComponent* SceneComp, TArray<UAc
 		{
 			OutComponents.push_back(Child);
 
-			FString indent(depth * 2, ' ');
-			UE_LOG("%s  -> Child component: %s (depth=%d, Owner=%s)",
-				   indent.c_str(), Child->GetName().ToString().c_str(), depth,
-				   Child->GetOwner() ? Child->GetOwner()->GetName().ToString().c_str() : "None");
-
 			// Recursively collect children of children
 			CollectSceneComponentChildren(Child, OutComponents, depth + 1);
 		}
@@ -242,19 +237,12 @@ TArray<UActorComponent*> AActor::GetAllComponents() const
 {
 	TArray<UActorComponent*> AllComponents;
 
-	UE_LOG("Actor::GetAllComponents for %s (OwnedComponents count: %d):",
-		   GetName().ToString().c_str(), OwnedComponents.size());
-
 	// Collect all directly owned components
 	for (const auto& Component : OwnedComponents)
 	{
 		if (Component)
 		{
 			AllComponents.push_back(Component.Get());
-
-			UE_LOG("  Owned component: %s (Type: %d)",
-				   Component->GetName().ToString().c_str(),
-				   static_cast<int>(Component->GetComponentType()));
 
 			// If this is a SceneComponent, recursively collect its entire hierarchy
 			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component.Get()))
@@ -263,8 +251,6 @@ TArray<UActorComponent*> AActor::GetAllComponents() const
 			}
 		}
 	}
-
-	UE_LOG("  Total components collected: %d", AllComponents.size());
 
 	return AllComponents;
 }

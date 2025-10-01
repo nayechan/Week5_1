@@ -161,27 +161,46 @@ void UEditor::Update()
 		}
 	}
 
-	// 3. 선택된 액터의 BoundingBox 업데이트
-	if (AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor())
+	// 3. 선택된 오브젝트의 BoundingBox 업데이트
+	// Use UIManager's SelectedObject to show bounds for selected component
+	TObjectPtr<UObject> SelectedObject = UUIManager::GetInstance().GetSelectedObject();
+	if (SelectedObject)
 	{
-		for (const auto& Component : SelectedActor->GetOwnedComponents())
+		uint64 ShowFlags = ULevelManager::GetInstance().GetCurrentLevel()->GetShowFlags();
+
+		if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
 		{
-			if (auto PrimitiveComponent = Cast<UPrimitiveComponent>(Component))
+			UPrimitiveComponent* PrimitiveToShow = nullptr;
+
+			// Check if SelectedObject is an Actor or a Component
+			if (AActor* SelectedActor = Cast<AActor>(SelectedObject.Get()))
 			{
-				FVector WorldMin, WorldMax;
-				PrimitiveComponent->GetWorldAABB(WorldMin, WorldMax);
-
-				uint64 ShowFlags = ULevelManager::GetInstance().GetCurrentLevel()->GetShowFlags();
-
-				if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
+				// Show bounds for actor's root component
+				if (USceneComponent* RootComp = SelectedActor->GetRootComponent())
 				{
-					BatchLines.UpdateBoundingBoxVertices(FAABB(WorldMin, WorldMax));
-				}
-				else
-				{
-					BatchLines.UpdateBoundingBoxVertices({ { 0.0f,0.0f,0.0f }, { 0.0f, 0.0f, 0.0f } });
+					PrimitiveToShow = Cast<UPrimitiveComponent>(RootComp);
 				}
 			}
+			else if (UActorComponent* SelectedComponent = Cast<UActorComponent>(SelectedObject.Get()))
+			{
+				// Show bounds for selected component
+				PrimitiveToShow = Cast<UPrimitiveComponent>(SelectedComponent);
+			}
+
+			if (PrimitiveToShow)
+			{
+				FVector WorldMin, WorldMax;
+				PrimitiveToShow->GetWorldAABB(WorldMin, WorldMax);
+				BatchLines.UpdateBoundingBoxVertices(FAABB(WorldMin, WorldMax));
+			}
+			else
+			{
+				BatchLines.UpdateBoundingBoxVertices({ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} });
+			}
+		}
+		else
+		{
+			BatchLines.UpdateBoundingBoxVertices({ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} });
 		}
 	}
 	else

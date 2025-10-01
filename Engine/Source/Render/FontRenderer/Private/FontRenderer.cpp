@@ -130,7 +130,6 @@ void UFontRenderer::RenderText(const char* Text, const FMatrix& WorldMatrix, con
 {
     if (!Text || strlen(Text) == 0)
     {
-        UE_LOG_WARNING("FontRenderer: 빈 텍스트 시도");
         return;
     }
 
@@ -142,8 +141,6 @@ void UFontRenderer::RenderText(const char* Text, const FMatrix& WorldMatrix, con
     if (!Device || !DeviceContext || !FontVertexShader || !FontPixelShader ||
         !FontInputLayout || !FontAtlasTexture)
     {
-        UE_LOG_ERROR("FontRenderer: 렌더링에 필요한 리소스가 null - Device:%p, Context:%p, VS:%p, PS:%p, Layout:%p, Tex:%p",
-            Device, DeviceContext, FontVertexShader, FontPixelShader, FontInputLayout, FontAtlasTexture);
         return;
     }
 
@@ -218,7 +215,6 @@ void UFontRenderer::RenderText(const char* Text, const FMatrix& WorldMatrix, con
     HRESULT hr = Device->CreateBuffer(&bufferDesc, &initData, &tempVertexBuffer);
     if (FAILED(hr))
     {
-        UE_LOG_ERROR("FontRenderer: 임시 정점 버퍼 생성 실패 (HRESULT: 0x%08lX)", hr);
         return;
     }
 
