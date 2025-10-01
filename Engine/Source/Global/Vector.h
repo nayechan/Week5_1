@@ -62,7 +62,7 @@ struct FVector
 	/**
 	 * @brief 자신의 벡터의 각 성분의 부호를 반전한 값을 반환
 	 */
-	FVector operator-() const { return {-X, -Y, -Z}; }
+	FVector operator-() const { return { -X, -Y, -Z }; }
 
 	bool operator==(const FVector& InOther) const;
 
@@ -70,7 +70,7 @@ struct FVector
 	 * @brief 백터의 길이 연산 함수 (SIMD 최적화)
 	 * @return 백터의 길이
 	 */
-	float Length() const 
+	float Length() const
 	{
 		// SIMD를 사용한 최적화
 		__m128 vec = _mm_set_ps(0.0f, Z, Y, X);
@@ -83,7 +83,7 @@ struct FVector
 	/**
 	 * @brief 자신의 백터의 각 성분을 제곱하여 더한 값을 반환하는 함수 (SIMD 최적화)
 	 */
-	float LengthSquared() const 
+	float LengthSquared() const
 	{
 		// SIMD를 사용한 최적화
 		__m128 vec = _mm_set_ps(0.0f, Z, Y, X);
@@ -129,7 +129,7 @@ struct FVector
 		__m128 squared = _mm_mul_ps(vec, vec);
 		__m128 sum = _mm_hadd_ps(squared, squared);
 		sum = _mm_hadd_ps(sum, sum);
-		
+
 		// 길이가 0에 가까우면 정규화 방지
 		float lengthSq = _mm_cvtss_f32(sum);
 		if (lengthSq > 0.00000001f)
@@ -137,7 +137,7 @@ struct FVector
 			__m128 invLength = _mm_rsqrt_ss(sum);
 			invLength = _mm_shuffle_ps(invLength, invLength, _MM_SHUFFLE(0, 0, 0, 0));
 			vec = _mm_mul_ps(vec, invLength);
-			
+
 			// 결과를 다시 할당
 			float result[4];
 			_mm_store_ps(result, vec);
@@ -153,7 +153,7 @@ struct FVector
 	static float GetDegreeToRadian(const float InDegree) { return (InDegree * PI) / 180.f; }
 	static FVector GetDegreeToRadian(const FVector& InRotation)
 	{
-		return FVector{(InRotation.X * PI) / 180.f, (InRotation.Y * PI) / 180.f, (InRotation.Z * PI) / 180.f};
+		return FVector{ (InRotation.X * PI) / 180.f, (InRotation.Y * PI) / 180.f, (InRotation.Z * PI) / 180.f };
 	}
 
 	/**
@@ -166,17 +166,17 @@ struct FVector
 	}
 
 	// Constant Vector (definition from UE5)
-	static FVector ZeroVector() { return {0.0f, 0.0f, 0.0f}; }
-	static FVector OneVector() { return {1.0f, 1.0f, 1.0f}; }
-	static FVector ForwardVector() { return {1.0f, 0.0f, 0.0f}; }
-	static FVector BackwardVector() { return {-1.0f, 0.0f, 0.0f}; }
-	static FVector UpVector() { return {0.0f, 0.0f, 1.0f}; }
-	static FVector DownVector() { return {0.0f, 0.0f, -1.0f}; }
-	static FVector RightVector() { return {0.0f, 1.0f, 0.0f}; }
-	static FVector LeftVector() { return {0.0f, -1.0f, 0.0f}; }
-	static FVector XAxisVector() { return {1.0f, 0.0f, 0.0f}; }
-	static FVector YAxisVector() { return {0.0f, 1.0f, 0.0f}; }
-	static FVector ZAxisVector() { return {0.0f, 0.0f, 1.0f}; }
+	static FVector ZeroVector() { return { 0.0f, 0.0f, 0.0f }; }
+	static FVector OneVector() { return { 1.0f, 1.0f, 1.0f }; }
+	static FVector ForwardVector() { return { 1.0f, 0.0f, 0.0f }; }
+	static FVector BackwardVector() { return { -1.0f, 0.0f, 0.0f }; }
+	static FVector UpVector() { return { 0.0f, 0.0f, 1.0f }; }
+	static FVector DownVector() { return { 0.0f, 0.0f, -1.0f }; }
+	static FVector RightVector() { return { 0.0f, 1.0f, 0.0f }; }
+	static FVector LeftVector() { return { 0.0f, -1.0f, 0.0f }; }
+	static FVector XAxisVector() { return { 1.0f, 0.0f, 0.0f }; }
+	static FVector YAxisVector() { return { 0.0f, 1.0f, 0.0f }; }
+	static FVector ZAxisVector() { return { 0.0f, 0.0f, 1.0f }; }
 
 	[[nodiscard]] static FVector Zero() { return ZeroVector(); }
 	[[nodiscard]] static FVector One() { return OneVector(); }
@@ -294,47 +294,18 @@ struct FVector4
 	 */
 	void operator*=(float Ratio);
 
-	/**
-	 * @brief FVector4의 길이 연산 함수 (SIMD 최적화)
-	 * @return 벡터의 길이
-	 */
 	float Length() const
 	{
-		// SIMD를 사용한 최적화
-		__m128 vec = _mm_set_ps(W, Z, Y, X);
-		__m128 squared = _mm_mul_ps(vec, vec);
-		__m128 sum = _mm_hadd_ps(squared, squared);
-		sum = _mm_hadd_ps(sum, sum);
-		return _mm_cvtss_f32(_mm_sqrt_ss(sum));
+		return sqrtf(X * X + Y * Y + Z * Z + W * W);
 	}
 
-	/**
-	 * @brief 단위 벡터로 변경하는 함수 (SIMD 최적화)
-	 */
 	void Normalize()
 	{
-		// SIMD를 사용한 최적화
-		__m128 vec = _mm_set_ps(W, Z, Y, X);
-		__m128 squared = _mm_mul_ps(vec, vec);
-		__m128 sum = _mm_hadd_ps(squared, squared);
-		sum = _mm_hadd_ps(sum, sum);
-		
-		// 길이가 0에 가까우면 정규화 방지
-		float lengthSq = _mm_cvtss_f32(sum);
-		if (lengthSq > 0.00000001f)
-		{
-			__m128 invLength = _mm_rsqrt_ss(sum);
-			invLength = _mm_shuffle_ps(invLength, invLength, _MM_SHUFFLE(0, 0, 0, 0));
-			vec = _mm_mul_ps(vec, invLength);
-			
-			// 결과를 다시 할당
-			float result[4];
-			_mm_store_ps(result, vec);
-			X = result[0];
-			Y = result[1];
-			Z = result[2];
-			W = result[3];
-		}
+		float Magnitude = this->Length();
+		X /= Magnitude;
+		Y /= Magnitude;
+		Z /= Magnitude;
+		W /= Magnitude;
 	}
 
 

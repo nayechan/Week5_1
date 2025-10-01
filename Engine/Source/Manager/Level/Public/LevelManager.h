@@ -18,10 +18,14 @@ public:
 
 	// Getter
 	TObjectPtr<ULevel> GetCurrentLevel() const { return CurrentLevel; }
+	
+	// WorldManager 를 통한 World 접근
+	class UWorld* GetCurrentWorld() const;
 
 	// Save & Load System
 	bool SaveCurrentLevel(const FString& InFilePath) const;
 	bool CreateNewLevel(const FString& InLevelName = "Untitled");
+	ULevel* CreateLevel(const FString& InFilePath);
 	static path GetLevelDirectory();
 	static path GenerateLevelFilePath(const FString& InLevelName);
 

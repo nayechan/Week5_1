@@ -20,6 +20,7 @@
 #include "Global/Quaternion.h"
 #include "Utility/Public/ScopeCycleCounter.h"
 #include "Utility/Public/SceneBVH.h"
+#include "Source/Core/Public/World.h"
 
 UEditor::UEditor()
 {
@@ -57,12 +58,38 @@ UEditor::UEditor()
 	// 초기 상태를 싱글 뷰포트 모드로 설정 (첫 번째 뷰포트 표시)
 	// TODO: ConfigManager에서 초기 뷰포트 모드 설정을 읽어오도록 개선 필요
 	// 저장된 멀티모드 비율은 유지하면서 싱글모드로 시작
+
+	// 생성 시점에는 ViewportLayoutState를 Single로 미리 설정하여
+	// SetSingleViewportLayout에서 SavedRatio를 덮어쓰지 않도록 함
+	ViewportLayoutState = EViewportLayoutState::Single;
+
 	SetSingleViewportLayout(0);
+
+	// 생성 시점에는 애니메이션 없이 즉시 싱글 모드로 설정
+	TargetViewportLayoutState = EViewportLayoutState::Single;
+
+	// 스플리터 비율을 즉시 싱글 모드 값으로 설정 (애니메이션 스킵)
+	RootSplitter.SetRatio(TargetRootRatio);
+	LeftSplitter.SetRatio(TargetLeftRatio);
+	RightSplitter.SetRatio(TargetRightRatio);
+
+	// SourceRatio도 현재 Target 값으로 설정하여 다음 애니메이션의 시작점을 명확히 함
+	SourceRootRatio = TargetRootRatio;
+	SourceLeftRatio = TargetLeftRatio;
+	SourceRightRatio = TargetRightRatio;
 }
 
 UEditor::~UEditor()
 {
-	UConfigManager::GetInstance().SetSplitterRatio(RootSplitter.GetRatio(), LeftSplitter.GetRatio(), RightSplitter.GetRatio());
+	// 전체화면 모드인 경우 백업된 4분할 비율을 저장, 아니면 현재 비율 저장
+	if (ViewportLayoutState == EViewportLayoutState::Single)
+	{
+		UConfigManager::GetInstance().SetSplitterRatio(SavedRootRatio, SavedLeftRatio, SavedRightRatio);
+	}
+	else
+	{
+		UConfigManager::GetInstance().SetSplitterRatio(RootSplitter.GetRatio(), LeftSplitter.GetRatio(), RightSplitter.GetRatio());
+	}
 	SafeDelete(DraggedSplitter);
 	SafeDelete(InteractionViewport);
 }
@@ -71,11 +98,45 @@ void UEditor::Update()
 {
 	URenderer& Renderer = URenderer::GetInstance();
 	FViewport* Viewport = Renderer.GetViewportClient();
+	UInputManager& InputManager = UInputManager::GetInstance();
+
+	// 뷰포트 레이아웃은 PIE 모드와 관계없이 항상 업데이트
+	// (창 크기 변경, 스플리터 드래그, 뷰포트 전환 애니메이션 등)
+	UpdateLayout();
 
 	// 1. 마우스 위치를 기반으로 활성 뷰포트를 결정합니다.
-	Viewport->UpdateActiveViewportClient(UInputManager::GetInstance().GetMousePosition());
+	// Active Viewport는 클릭할 때만 변경 (마우스 호버만으로는 변경 안 됨)
+	// PIE 모드와 관계없이 항상 업데이트되어야 함
+	bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+	bool bMouseClicked = InputManager.IsKeyPressed(EKeyInput::MouseLeft) || InputManager.IsKeyPressed(EKeyInput::MouseRight);
+	if (!bMouseOverImGui && bMouseClicked)
+	{
+		FViewportClient* PreviousActive = Viewport->GetActiveViewportClient();
+		Viewport->UpdateActiveViewportClient(UInputManager::GetInstance().GetMousePosition());
+		FViewportClient* CurrentActive = Viewport->GetActiveViewportClient();
 
-	// 2. 활성 뷰포트의 카메라의 제어만 업데이트합니다.
+		// Active viewport가 변경되었을 때만 로그
+		if (PreviousActive != CurrentActive && CurrentActive != nullptr)
+		{
+			UE_LOG("Editor: Active Viewport Changed (Address: %p)", CurrentActive);
+		}
+	}
+
+	// 마우스 입력 처리는 항상 호출 (내부에서 PIE 체크)
+	// 기즈모 호버는 현재 마우스 위치의 뷰포트 기준으로 동작해야 하므로
+	ProcessMouseInput(ULevelManager::GetInstance().GetCurrentLevel());
+
+	// Active Viewport가 PIE 모드인 경우, 나머지 에디터 기능 스킵
+	FViewportClient* ActiveViewportClient = Viewport->GetActiveViewportClient();
+	bool bIsPIEViewport = ActiveViewportClient && ActiveViewportClient->RenderTargetWorld && ActiveViewportClient->RenderTargetWorld->IsPIEWorld();
+	if (bIsPIEViewport)
+	{
+		return;
+	}
+
+	// 이하 에디터 전용 기능들 (PIE 모드에서는 실행되지 않음)
+
+	// 2. 활성 뷰포트의 카메라 제어를 업데이트합니다.
 	if (UCamera* ActiveCamera = Viewport->GetActiveCamera())
 	{
 		// ✨ 만약 이동량이 있고, 직교 카메라라면 ViewportClient에 알립니다.
@@ -86,6 +147,7 @@ void UEditor::Update()
 		}
 	}
 
+	// 3. 선택된 액터의 BoundingBox 업데이트
 	if (AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor())
 	{
 		for (const auto& Component : SelectedActor->GetOwnedComponents())
@@ -116,10 +178,6 @@ void UEditor::Update()
 	BatchLines.UpdateVertexBuffer();
 
 	EnsureBVHUpToDate(ULevelManager::GetInstance().GetCurrentLevel());
-
-	ProcessMouseInput(ULevelManager::GetInstance().GetCurrentLevel());
-
-	UpdateLayout();
 }
 
 void UEditor::RenderEditor(UCamera* InCamera)
@@ -212,6 +270,9 @@ void UEditor::SetSingleViewportLayout(int InActiveIndex)
 	ViewportLayoutState = EViewportLayoutState::Animating;
 	TargetViewportLayoutState = EViewportLayoutState::Single;
 	AnimationStartTime = UTimeManager::GetInstance().GetGameTime();
+
+	// 애니메이션 완료 후 다음 애니메이션의 시작점으로 사용될 SourceRatio 업데이트
+	// (애니메이션이 완료되면 UpdateLayout에서 이 값들이 사용됨)
 }
 
 /**
@@ -233,9 +294,9 @@ void UEditor::RestoreMultiViewportLayout()
 		SplitterWidget->SetVisible(true);
 	}
 
-	SourceRootRatio = RootSplitter.GetRatio();
-	SourceLeftRatio = LeftSplitter.GetRatio();
-	SourceRightRatio = RightSplitter.GetRatio();
+	// 싱글 모드에서는 SourceRatio가 이미 설정되어 있으므로 그대로 사용
+	// (RootSplitter.GetRatio()는 Resize()에 의해 변경될 수 있음)
+	// SourceRootRatio는 이미 생성자나 SetSingleViewportLayout에서 설정됨
 
 	TargetRootRatio = SavedRootRatio;
 	TargetLeftRatio = SavedLeftRatio;
@@ -285,6 +346,12 @@ void UEditor::UpdateLayout()
 		if (Alpha >= 1.0f)
 		{
 			ViewportLayoutState = TargetViewportLayoutState;
+
+			// 애니메이션 완료 시 SourceRatio를 현재 Target 값으로 업데이트
+			// 다음 애니메이션의 시작점으로 사용됨
+			SourceRootRatio = TargetRootRatio;
+			SourceLeftRatio = TargetLeftRatio;
+			SourceRightRatio = TargetRightRatio;
 		}
 	}
 
@@ -305,7 +372,8 @@ void UEditor::UpdateLayout()
 		}
 
 		// 2. 스플리터 위에 커서가 있으며 클릭을 한다면, 드래그 상태로 활성화합니다.
-		if (UInputManager::GetInstance().IsKeyPressed(EKeyInput::MouseLeft) && bIsHoveredOnSplitter)
+		bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+		if (!bMouseOverImGui && UInputManager::GetInstance().IsKeyPressed(EKeyInput::MouseLeft) && bIsHoveredOnSplitter)
 		{
 			// 호버 상태에 따라 드래그할 스플리터를 결정합니다.
 			if (LeftSplitter.IsHovered(MousePosition)) { DraggedSplitter = &LeftSplitter; }				// 좌상, 좌하
@@ -428,6 +496,14 @@ void UEditor::MarkActorPrimitivesDirty(AActor* InActor)
 	}
 }
 
+void UEditor::MarkPrimitiveDirty(UPrimitiveComponent* InPrim)
+{
+	if (InPrim)
+	{
+		PendingDirtyPrims.push_back(InPrim);
+	}
+}
+
 void UEditor::ProcessMouseInput(ULevel* InLevel)
 {
 	// 선택된 뷰포트의 정보들을 가져옵니다.
@@ -435,13 +511,38 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 	FViewportClient* CurrentViewport = nullptr;
 	UCamera* CurrentCamera = nullptr;
 
-	// 이미 선택된 뷰포트 영역이 존재한다면 선택된 뷰포트 처리를 진행합니다.
-	if (InteractionViewport) { CurrentViewport = InteractionViewport; }
-	// 선택된 뷰포트 영역이 존재하지 않는다면 현재 마우스 위치의 뷰포트를 선택합니다.
-	else { CurrentViewport = ViewportClient->GetActiveViewportClient(); }
+	// 이미 드래그 중이라면 InteractionViewport를 유지
+	if (InteractionViewport)
+	{
+		CurrentViewport = InteractionViewport;
+	}
+	// 드래그 중이 아니라면 현재 마우스 위치의 뷰포트를 사용 (호버 처리용)
+	else
+	{
+		const FVector& MousePos = UInputManager::GetInstance().GetMousePosition();
+		auto& Viewports = ViewportClient->GetViewports();
+
+		// 마우스 위치에 있는 뷰포트 찾기
+		for (auto& Viewport : Viewports)
+		{
+			if (!Viewport.bIsVisible) continue;
+
+			const D3D11_VIEWPORT& ViewportInfo = Viewport.GetViewportInfo();
+			if (MousePos.X >= ViewportInfo.TopLeftX && MousePos.X <= (ViewportInfo.TopLeftX + ViewportInfo.Width) &&
+				MousePos.Y >= ViewportInfo.TopLeftY && MousePos.Y <= (ViewportInfo.TopLeftY + ViewportInfo.Height))
+			{
+				CurrentViewport = &Viewport;
+				break;
+			}
+		}
+	}
 
 	// 처리할 영역이 존재하지 않으면 진행을 중단합니다.
 	if (CurrentViewport == nullptr) { return; }
+
+	// PIE 모드 뷰포트에서는 에디터 입력 처리를 하지 않음
+	bool bIsPIEViewport = CurrentViewport->RenderTargetWorld && CurrentViewport->RenderTargetWorld->IsPIEWorld();
+	if (bIsPIEViewport) { return; }
 
 	CurrentCamera = &CurrentViewport->Camera;
 
@@ -536,7 +637,10 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			Gizmo.SetGizmoDirection(EGizmoDirection::None);
 		}
 
-		if (!ImGui::GetIO().WantCaptureMouse && InputManager.IsKeyPressed(EKeyInput::MouseLeft))
+		// ImGui 호버 체크: 마우스가 ImGui 창 위에 있으면 picking 하지 않음
+		bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+
+		if (!bMouseOverImGui && InputManager.IsKeyPressed(EKeyInput::MouseLeft))
 		{
 			// 퍼포먼스 측정용 카운터 시작 (BVH 탐색을 수행하는 경우에만 측정)
 			FScopeCycleCounter PickCounter(GetPickingStatId());
@@ -573,7 +677,8 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 		else
 		{
 			PreviousGizmoDirection = Gizmo.GetGizmoDirection();
-			if (InputManager.IsKeyPressed(EKeyInput::MouseLeft))
+			bool bMouseOverImGui = ImGui::GetIO().WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+			if (!bMouseOverImGui && InputManager.IsKeyPressed(EKeyInput::MouseLeft))
 			{
 				// 이미 위에서 드래그를 시작했다면 다시 호출하지 않음
 				if (!bGizmoDragStarted)
@@ -594,7 +699,7 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 TArray<UPrimitiveComponent*> UEditor::FindCandidatePrimitives(ULevel* InLevel)
 {
 	TArray<UPrimitiveComponent*> Candidate;
-	for (AActor* Actor : InLevel->GetLevelActors())
+	for (AActor* Actor : InLevel->GetActors())
 	{
 		for (auto& ActorComponent : Actor->GetOwnedComponents())
 		{
@@ -646,10 +751,10 @@ void UEditor::EnsureBVHUpToDate(ULevel* InLevel)
 	}
 
 	// 3) 주기적 전체 리핏(품질 유지용)
-	if ((++SceneBVHRefitTick % 60) == 0)
+	/*if ((++SceneBVHRefitTick % 60) == 0)
 	{
 		SceneBVH.Refit();
-	}
+	}*/
 
 	// 4) 빌드 직후 프레임에서 카메라 생겼으면 피킹 워밍업
 	if (!bPickingWarmed)

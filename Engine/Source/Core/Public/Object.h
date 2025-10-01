@@ -21,6 +21,17 @@ public:
 	// 2. 가상 함수 (인터페이스)
 	virtual void Serialize(const bool bInIsLoading, JSON& InOutHandle);
 
+	/**
+	 * @brief 객체를 복제하는 함수 (PIE용)
+	 * 얼은 복사 + 서브오브젝트 깊은 복사
+	 */
+	virtual UObject* Duplicate();
+
+	/**
+	 * @brief 서브오브젝트를 복제하는 함수 (하위 클래스에서 재정의 가능)
+	 */
+	virtual void DuplicateSubObjects();
+
 	// 3. Public 멤버 함수
 	bool IsA(TObjectPtr<UClass> InClass) const;
 	void AddMemoryUsage(uint64 InBytes, uint32 InCount);

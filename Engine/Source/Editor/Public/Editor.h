@@ -41,6 +41,10 @@ public:
 	void SetViewMode(EViewModeIndex InNewViewMode) { CurrentViewMode = InNewViewMode; }
 	EViewModeIndex GetViewMode() const { return CurrentViewMode; }
 
+	// 선택 액터의 프리미티브를 더티로 등록
+	void MarkActorPrimitivesDirty(AActor* InActor);
+	void MarkPrimitiveDirty(UPrimitiveComponent* InPrim);
+
 	void SetSingleViewportLayout(int InActiveIndex);
 	void RestoreMultiViewportLayout();
 	// 새로운 레벨로 전환할 때 BVH 리셋
@@ -49,9 +53,6 @@ public:
 private:
 	void InitializeLayout();
 	void UpdateLayout();
-
-	// 선택 액터의 프리미티브를 더티로 등록
-	void MarkActorPrimitivesDirty(AActor* InActor);
 
 	void ProcessMouseInput(ULevel* InLevel);
 	TArray<UPrimitiveComponent*> FindCandidatePrimitives(ULevel* InLevel);

@@ -3,6 +3,7 @@
 #include "Core/Public/Object.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Editor/Public/EditorPrimitive.h"
+#include "Editor/Public/ViewportClient.h"
 
 class UPipeline;
 class UDeviceResources;
@@ -16,6 +17,7 @@ class UEditor;
 class UFontRenderer;
 class FViewport;
 class UCamera;
+class UCullingManager;
 
 /**
  * @brief Rendering Pipeline 전반을 처리하는 클래스
@@ -71,7 +73,7 @@ public:
 	// Render
 	void Update();
 	void RenderBegin() const;
-	void RenderLevel(UCamera* InCurrentCamera);
+	void RenderLevel(FViewportClient& InViewport);
 	void RenderEnd() const;
 	void RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState);
 	void RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* InCurrentCamera);
@@ -99,43 +101,8 @@ public:
 	ID3D11ShaderResourceView* CreateStructuredBufferSRV(ID3D11Buffer* InBuffer, uint32 InElementCount) const;
 	ID3D11UnorderedAccessView* CreateStructuredBufferUAV(ID3D11Buffer* InBuffer, uint32 InElementCount) const;
 
-	// HZB functions
-	void InitializeHZB();
-	void ReleaseHZBResources();
-	void GenerateHZB() const;
-	// HZB 샘플링 함수들 (일반적인 용도)
-	float SampleHZBDepth(uint32 mipLevel, uint32 x, uint32 y) const;
-	float SampleHZBRegionMaxDepth(uint32 mipLevel, uint32 startX, uint32 startY, uint32 width, uint32 height) const;
-
-	// Occlusion Culling 전용 HZB 샘플링 함수
-	float SampleHZBRect(float screenX, float screenY, float width, float height) const;
-
-	// HZB 캐시 관리
-	void CacheHZBForOcclusion() const;
-	void ReleaseCachedHZB() const;
-
-	// Occlusion Culling 유틸리티 함수들
-	bool ProjectAABBToScreen(const FVector& worldMin, const FVector& worldMax, const UCamera* camera,
-		float& outScreenX, float& outScreenY, float& outWidth, float& outHeight, float& outMinDepth) const;
-	bool IsOccluded(const FVector& worldMin, const FVector& worldMax, const UCamera* camera) const;
-	bool IsOccluded(const FVector& worldMin, const FVector& worldMax, const UCamera* camera, float expansionFactor) const;
-
-
-	// HZB mipLevel 3 캐시 (CPU 메모리)
-	mutable TArray<float> CachedHZBLevel3;
-	mutable uint32 CachedHZBWidth = 0;
-	mutable uint32 CachedHZBHeight = 0;
-	mutable bool bHZBCacheValid = false;
-
-	// 스테이징 텍스처 캐시 (재사용을 위한)
-	mutable ID3D11Texture2D* CachedStagingTexture = nullptr;
-	mutable uint32 CachedStagingWidth = 0;
-	mutable uint32 CachedStagingHeight = 0;
-
-	// 카메라 움직임 추적
-	mutable FVector LastCameraPosition = FVector::ZeroVector();
-	mutable FVector LastCameraRotation = FVector::ZeroVector();
-	mutable bool bCameraMovedSignificantly = false;
+	// Culling Manager 접근자
+	UCullingManager* GetCullingManager() const { return CullingManager; }
 
 
 	// Test functions
@@ -167,39 +134,12 @@ public:
 
 	void SetIsResizing(bool isResizing) { bIsResizing = isResizing; }
 
-	// Config Loading
-	void LoadLODSettings();
-
 private:
-	mutable struct FLODStats
-	{
-		uint32 LODUpdatesPerFrame = 0;
-		float LODUpdateTimeMs = 0.0f;
-		uint32 LOD0Count = 0;
-		uint32 LOD1Count = 0;
-		uint32 LOD2Count = 0;
-	} LODStats;
-
-	// LOD Config Settings
-	bool bLODEnabled = true;
-	float LODDistanceSquared0 = 100.0f;   // 10^2 = 100
-	float LODDistanceSquared1 = 6400.0f;  // 80^2 = 6400
-	// 카메라 위치 캐싱 (성능 최적화)
-	mutable FVector LastFrameCameraPos;
-
-	/**
-	 * @brief 초고속 LOD 업데이트 (SIMD 최적화)
-	 */
-	__forceinline void UpdateLODFast(UStaticMeshComponent* MeshComp, const FVector& CameraPos) const;
-
-	/**
-	 * @brief SIMD를 이용한 4개 객체 동시 LOD 계산
-	 */
-	void UpdateLODsBatchSIMD(UStaticMeshComponent** MeshComps, int Count, const FVector& CameraPos) const;
 
 	UPipeline* Pipeline = nullptr;
 	UDeviceResources* DeviceResources = nullptr;
 	UFontRenderer* FontRenderer = nullptr;
+	UCullingManager* CullingManager = nullptr;
 	TArray<UPrimitiveComponent*> PrimitiveComponents;
 
 	ID3D11DepthStencilState* DefaultDepthStencilState = nullptr;
@@ -224,19 +164,6 @@ private:
 	// Compute Shader resources
 	ID3D11ComputeShader* TestComputeShader = nullptr;
 	ID3D11Buffer* ComputeConstantBuffer = nullptr;
-
-	// HZB resources
-	ID3D11ComputeShader* HZBComputeShader = nullptr;
-	ID3D11ComputeShader* DepthCopyComputeShader = nullptr;
-	ID3D11Buffer* HZBConstantBuffer = nullptr;
-	ID3D11Texture2D* HZBTextures[4] = { nullptr }; // Mip levels 0-3
-	ID3D11UnorderedAccessView* HZBUAVs[4] = { nullptr }; // UAVs for each mip level
-	ID3D11ShaderResourceView* HZBSRVs[4] = { nullptr }; // SRVs for each mip level
-
-	// Depth buffer copy for HZB generation (to avoid read/write conflicts)
-	ID3D11Texture2D* HZBDepthCopy = nullptr;
-	ID3D11ShaderResourceView* HZBDepthCopySRV = nullptr;
-	ID3D11UnorderedAccessView* HZBDepthCopyUAV = nullptr;
 
 	uint32 Stride = 0;
 
