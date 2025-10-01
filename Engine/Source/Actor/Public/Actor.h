@@ -85,6 +85,18 @@ public:
 
 	UActorComponent* AddComponentByClass(UClass* ComponentClass, const FName& ComponentName);
 
+	/**
+	 * @brief Component를 Actor의 소유 목록에 등록
+	 * SceneComponent 자식들도 이 메서드를 통해 등록
+	 */
+	void RegisterComponent(UActorComponent* Component);
+
+	/**
+	 * @brief Component를 Actor의 소유 목록에서 제거
+	 * 삭제 전에 반드시 호출해야 함
+	 */
+	void UnregisterComponent(UActorComponent* Component);
+
 	template<class T>
 	T* CreateDefaultSubobject(const FName& InName)
 	{

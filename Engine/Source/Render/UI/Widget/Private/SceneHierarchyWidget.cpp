@@ -49,7 +49,7 @@ void USceneHierarchyWidget::RenderWidget()
 	// 검색창 렌더링
 	RenderSearchBar();
 
-	const TArray<AActor*>& Actors = CurrentLevel->GetActors();
+	TArray<AActor*> Actors = CurrentLevel->GetActorsPtrs();
 
 	if (Actors.empty())
 	{

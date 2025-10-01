@@ -45,7 +45,8 @@ void UWorld::Tick(float DeltaTime)
         return;
 
     // Level의 모든 액터들을 업데이트
-    for (AActor* Actor : Level->GetActors())
+    TArray<AActor*> Actors = Level->GetActorsPtrs();
+    for (AActor* Actor : Actors)
     {
         if (Actor && Actor->IsActorTickEnabled())
         {
@@ -79,7 +80,8 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
 	if (EditorWorld->GetLevel())
 	{
 		ULevel* EditorLevel = EditorWorld->GetLevel();
-		UE_LOG("DuplicateWorldForPIE: Editor Level found with %zu actors", EditorLevel->GetActors().size());
+		TArray<AActor*> EditorActors = EditorLevel->GetActorsPtrs();
+		UE_LOG("DuplicateWorldForPIE: Editor Level found with %zu actors", EditorActors.size());
 		
 		// 새로운 PIE 레벨 생성
 		ULevel* PIELevel = NewObject<ULevel>(TObjectPtr<UObject>(PIEWorld), ULevel::StaticClass(), FName("PIELevel"));
@@ -87,26 +89,24 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
 		if (PIELevel)
 		{
 			UE_LOG("DuplicateWorldForPIE: PIE Level created, starting actor duplication...");
-			// PIE Level의 내부 배열에 직접 액터들 추가
+			// PIE Level의 LevelActors 배열에 직접 액터들 추가
 			size_t duplicatedCount = 0;
-			TArray<AActor*>& PIEActorsArray = PIELevel->GetActors();  // 참조로 가져오기
+			TArray<TObjectPtr<AActor>>& PIEActorsArray = PIELevel->GetActors();  // 통합된 배열 참조
 			
-			for (AActor* EditorActor : EditorLevel->GetActors())
+			for (AActor* EditorActor : EditorActors)
 			{
 				if (EditorActor)
 				{
 					UE_LOG("DuplicateWorldForPIE: Duplicating actor: %s", EditorActor->GetName().ToString().data());
-					// 액터 복제 (얕은 복사 + 서브오브젝트 깊은 복사)
+					// 액터 복제 (얘은 복사 + 서브오브젝트 깊은 복사)
 					AActor* PIEActor = Cast<AActor>(EditorActor->Duplicate());
 					if (PIEActor)
 					{
 						UE_LOG("DuplicateWorldForPIE: Actor duplicated successfully: %s", PIEActor->GetName().ToString().data());
-						// PIE 레벨의 Actors 배열에 직접 추가
-						PIEActorsArray.push_back(PIEActor);
-						// CRITICAL FIX: LevelActors 배열에도 추가 (Init()에서 Actors 배열을 LevelActors로 동기화하기 때문)
-						PIELevel->GetLevelActors().push_back(TObjectPtr<AActor>(PIEActor));
+						// 통합된 PIE 배열에 추가
+						PIEActorsArray.push_back(TObjectPtr<AActor>(PIEActor));
 						duplicatedCount++;
-						UE_LOG("DuplicateWorldForPIE: Added to PIE Level Actors (%zu) and LevelActors (%zu)", PIEActorsArray.size(), PIELevel->GetLevelActors().size());
+						UE_LOG("DuplicateWorldForPIE: Added to PIE Level Actors (%zu)", PIEActorsArray.size());
 					}
 					else
 					{
@@ -144,7 +144,8 @@ void UWorld::InitializeActorsForPlay()
         return;
 
     // 모든 액터의 BeginPlay 호출
-    for (AActor* Actor : Level->GetActors())
+    TArray<AActor*> Actors = Level->GetActorsPtrs();
+    for (AActor* Actor : Actors)
     {
         if (Actor)
         {
@@ -159,7 +160,8 @@ void UWorld::CleanupWorld()
         return;
 
     // 모든 액터의 EndPlay 호출
-    for (AActor* Actor : Level->GetActors())
+    TArray<AActor*> Actors = Level->GetActorsPtrs();
+    for (AActor* Actor : Actors)
     {
         if (Actor)
         {

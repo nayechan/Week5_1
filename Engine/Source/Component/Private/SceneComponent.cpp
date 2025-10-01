@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "Component/Public/SceneComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
+#include "Utility/Public/JsonSerializer.h"
+#include "Actor/Public/Actor.h"
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Utility/Public/JsonSerializer.h"
 #include "Global/Matrix.h"
@@ -75,12 +77,36 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 
 void USceneComponent::AddChild(USceneComponent* NewChild)
 {
+	if (!NewChild)
+	{
+		return;
+	}
+
 	Children.push_back(NewChild);
+
+	// 자식 컴포넌트를 Actor의 소유 목록에도 추가
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor && NewChild->GetOwner() != OwnerActor)
+	{
+		OwnerActor->RegisterComponent(NewChild);
+	}
 }
 
 void USceneComponent::RemoveChild(USceneComponent* ChildDeleted)
 {
+	if (!ChildDeleted)
+	{
+		return;
+	}
+
 	Children.erase(std::remove(Children.begin(), Children.end(), ChildDeleted), Children.end());
+
+	// 자식 컴포넌트를 Actor의 소유 목록에서도 제거
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor)
+	{
+		OwnerActor->UnregisterComponent(ChildDeleted);
+	}
 }
 
 void USceneComponent::MarkAsDirty()

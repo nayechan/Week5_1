@@ -17,10 +17,25 @@ AActor::AActor(UObject* InOuter)
 
 AActor::~AActor()
 {
-	for (UActorComponent* Component : OwnedComponents)
+	// 모든 컴포넌트를 안전하게 해제 (자식 컴포넌트 포함)
+	TArray<UActorComponent*> AllComponents = GetAllComponents();
+	
+	// 역순으로 삭제 (자식부터 먼저 삭제)
+	for (int32 i = AllComponents.size() - 1; i >= 0; --i)
 	{
-		SafeDelete(Component);
+		UActorComponent* Component = AllComponents[i];
+		if (Component)
+		{
+			// SceneComponent인 경우 부모-자식 관계 정리
+			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
+			{
+				SceneComp->SetParentAttachment(nullptr);
+			}
+			
+			SafeDelete(Component);
+		}
 	}
+	
 	SetOuter(nullptr);
 	OwnedComponents.clear();
 }
@@ -123,6 +138,73 @@ UActorComponent* AActor::AddComponentByClass(UClass* ComponentClass, const FName
 	}
 
 	return NewComponent.Get();
+}
+
+void AActor::RegisterComponent(UActorComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	// 중복 방지
+	for (const auto& ExistingComp : OwnedComponents)
+	{
+		if (ExistingComp.Get() == Component)
+		{
+			UE_LOG("AActor::RegisterComponent: Component %s already registered", Component->GetName().ToString().c_str());
+			return;
+		}
+	}
+
+	// 컴포넌트 등록
+	OwnedComponents.push_back(TObjectPtr<UActorComponent>(Component));
+	Component->SetOwner(this);
+
+	// PrimitiveComponent인 경우 Level에 등록
+	if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Component))
+	{
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (CurrentLevel)
+		{
+			CurrentLevel->RegisterPrimitiveComponent(PrimitiveComp);
+		}
+	}
+
+	UE_LOG("AActor::RegisterComponent: Component %s registered to %s", 
+	       Component->GetName().ToString().c_str(), GetName().ToString().c_str());
+}
+
+void AActor::UnregisterComponent(UActorComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	// OwnedComponents에서 제거
+	for (auto it = OwnedComponents.begin(); it != OwnedComponents.end(); ++it)
+	{
+		if (it->Get() == Component)
+		{
+			OwnedComponents.erase(it);
+			break;
+		}
+	}
+
+	// PrimitiveComponent인 경우 Level에서 제거
+	if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Component))
+	{
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (CurrentLevel)
+		{
+			// Level에서 Primitive 제거 로직 호출 필요
+			// 현재 Level 클래스에 이러한 메서드가 없으므로 필요 시 추가
+		}
+	}
+
+	UE_LOG("AActor::UnregisterComponent: Component %s unregistered from %s", 
+	       Component->GetName().ToString().c_str(), GetName().ToString().c_str());
 }
 
 // Helper function to recursively collect scene component children

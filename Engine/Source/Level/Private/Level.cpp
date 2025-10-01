@@ -24,6 +24,19 @@ IMPLEMENT_CLASS(ULevel, UObject)
 
 ULevel::ULevel() = default;
 
+TArray<AActor*> ULevel::GetActorsPtrs() const
+{
+	TArray<AActor*> ActorPtrs;
+	for (const auto& Actor : LevelActors)
+	{
+		if (Actor)
+		{
+			ActorPtrs.push_back(Actor.Get());
+		}
+	}
+	return ActorPtrs;
+}
+
 ULevel::ULevel(const FName& InName)
 	: UObject(InName)
 {
@@ -113,20 +126,11 @@ void ULevel::Init()
 	FAABB WorldBounds(FVector(-10000, -10000, -10000), FVector(10000, 10000, 10000));
 	StaticOctree.Initialize(WorldBounds);
 
-	// LevelActors를 Actors 배열과 동기화 (PIE 지원을 위함)
-	Actors.clear();
-	for (const auto& Actor : LevelActors)
-	{
-		if (Actor)
-		{
-			Actors.push_back(Actor.Get());
-		}
-	}
+	// PIE 지원을 위한 별도 배열 동기화 제거 (통합된 배열 사용)
+	UE_LOG("ULevel::Init: Processing %zu LevelActors", LevelActors.size());
 
 	// IMPORTANT: Initialize all world transforms FIRST before processing primitives
 	// 월드 변환을 먼저 업데이트해야 GetWorldAABB가 올바른 값을 반환함
-	UE_LOG("ULevel::Init: Processing %zu LevelActors and %zu Actors", LevelActors.size(), Actors.size());
-
 	for (auto& Actor : LevelActors)
 	{
 		if (Actor && Actor->GetRootComponent())
@@ -135,34 +139,11 @@ void ULevel::Init()
 		}
 	}
 
-	// 레벨 안의 모든 액터 → PrimitiveComponent 순회해서 Octree에 삽입 및 LevelPrimitiveComponents에 추가
-	// LevelActors 배열 처리
+	// 레벨 안의 모든 액터를 Octree에 삽입 및 LevelPrimitiveComponents에 추가
 	for (auto& Actor : LevelActors)
 	{
 		if (!Actor) continue;
 		ProcessActorForInit(Actor.Get());
-	}
-
-	// PIE를 위해 Actors 배열도 처리 (중복 방지)
-	for (AActor* Actor : Actors)
-	{
-		if (!Actor) continue;
-
-		// LevelActors에 이미 있는 Actor는 스킵
-		bool bAlreadyProcessed = false;
-		for (const auto& LevelActor : LevelActors)
-		{
-			if (LevelActor.Get() == Actor)
-			{
-				bAlreadyProcessed = true;
-				break;
-			}
-		}
-
-		if (!bAlreadyProcessed)
-		{
-			ProcessActorForInit(Actor);
-		}
 	}
 
 	UE_LOG("ULevel::Init: Final LevelPrimitiveComponents count: %zu", LevelPrimitiveComponents.size());
@@ -173,36 +154,32 @@ void ULevel::Update()
 	// Process Delayed Task
 	ProcessPendingDeletions();
 
-	// Update all actor transforms before ticking and rendering
-	// Only root components need to be updated - they will recursively update children
+	// 최적화: Transform 업데이트를 루트 컴포넌트만 수행 (자식들은 재귀적으로 업데이트)
 	static int frameCount = 0;
 	int updateCount = 0;
+	int tickCount = 0;
+	
 	for (auto& Actor : LevelActors)
 	{
 		if (Actor && Actor->GetRootComponent())
 		{
+			// 루트 컴포넌트만 업데이트 (자식들은 재귀적으로 처리됨)
 			Actor->GetRootComponent()->UpdateWorldTransform();
 			updateCount++;
+		}
+		
+		// Tick 처리
+		if (Actor && Actor->IsActorTickEnabled())
+		{
+			Actor->Tick(0.0f); // TODO: DeltaTime 매개변수 추가 필요
+			tickCount++;
 		}
 	}
 
 	// Log every 60 frames to check performance
 	if (++frameCount % 60 == 0)
 	{
-		UE_LOG("Level::Update: Updated %d root transforms", updateCount);
-	}
-
-	for (auto& Actor : LevelActors)
-	{
-		if (Actor)
-		{
-			// Tick 전에 월드 변환 업데이트
-			if (USceneComponent* RootComponent = Actor->GetRootComponent())
-			{
-				RootComponent->UpdateWorldTransform();
-			}
-			Actor->Tick(0.0f); // TODO: DeltaTime 매개변수 추가 필요
-		}
+		UE_LOG("Level::Update: Updated %d transforms, Ticked %d actors", updateCount, tickCount);
 	}
 }
 
@@ -224,9 +201,8 @@ void ULevel::Cleanup()
 	}
 	LevelActors.clear();
 
-	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컸테이너들을 비웁니다.
+	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컴테이너들을 비웁니다.
 	ActorsToDelete.clear();
-	Actors.clear(); // PIE 지원을 위한 Actors 배열도 정리
 	LevelPrimitiveComponents.clear();
 
 	// 4. 선택된 액터 참조를 안전하게 해제합니다.
@@ -250,9 +226,8 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 		{
 			NewActor->SetName(InName);
 		}
-		// LevelActors와 Actors 모두 업데이트 (PIE 지원)
+		// 통합된 Actor 배열에 추가
 		LevelActors.push_back(TObjectPtr(NewActor));
-		Actors.push_back(NewActor);
 		NewActor->BeginPlay();
 
 		// Use GetAllComponents() to include nested children
@@ -516,53 +491,22 @@ void ULevel::DuplicateSubObjects()
 {
 	Super::DuplicateSubObjects();
 	
-	UE_LOG("ULevel::DuplicateSubObjects: Starting with %zu LevelActors and %zu Actors", LevelActors.size(), Actors.size());
+	UE_LOG("ULevel::DuplicateSubObjects: Starting with %zu LevelActors", LevelActors.size());
 	
-	// LevelActors 배열이 비어있지만 Actors에 데이터가 있는 경우 (PIE)
-	if (LevelActors.empty() && !Actors.empty())
+	// 통합된 LevelActors 배열의 모든 Actor 복제
+	for (auto& Actor : LevelActors)
 	{
-		UE_LOG("ULevel::DuplicateSubObjects: PIE mode detected - processing Actors array");
-		// Actors 배열의 모든 Actor 복제
-		for (auto& Actor : Actors)
+		if (Actor)
 		{
-			if (Actor)
-			{
-				AActor* DuplicatedActor = static_cast<AActor*>(Actor->Duplicate());
-				if (DuplicatedActor)
-				{
-					Actor = DuplicatedActor;
-				}
-			}
-		}
-	}
-	else
-	{
-		UE_LOG("ULevel::DuplicateSubObjects: Editor mode detected - processing LevelActors array");
-		// LevelActors 배열의 모든 Actor 복제
-		for (auto& Actor : LevelActors)
-		{
-			if (Actor)
-			{
-				Actor = static_cast<AActor*>(Actor->Duplicate());
-			}
-		}
-		
-		// Actors 배열을 LevelActors에서 동기화
-		Actors.clear();
-		for (const auto& Actor : LevelActors)
-		{
-			if (Actor)
-			{
-				Actors.push_back(Actor.Get());
-			}
+			Actor = static_cast<AActor*>(Actor->Duplicate());
 		}
 	}
 	
 	// LevelPrimitiveComponents 업데이트
 	LevelPrimitiveComponents.clear();
 	
-	// Actors 배열을 기준으로 LevelPrimitiveComponents 업데이트 (PIE 지원)
-	for (AActor* Actor : Actors)
+	// LevelActors 배열을 기준으로 LevelPrimitiveComponents 업데이트
+	for (const auto& Actor : LevelActors)
 	{
 		if (Actor)
 		{
@@ -576,8 +520,8 @@ void ULevel::DuplicateSubObjects()
 		}
 	}
 	
-	UE_LOG("ULevel::DuplicateSubObjects: Completed with %zu LevelActors, %zu Actors, and %zu LevelPrimitiveComponents", 
-	       LevelActors.size(), Actors.size(), LevelPrimitiveComponents.size());
+	UE_LOG("ULevel::DuplicateSubObjects: Completed with %zu LevelActors and %zu LevelPrimitiveComponents", 
+	       LevelActors.size(), LevelPrimitiveComponents.size());
 }
 
 UObject* ULevel::Duplicate()
