@@ -444,6 +444,55 @@ void AActor::CopyComponentData(AActor* TargetActor)
 	UE_LOG("AActor::CopyComponentData: Component data copying completed");
 }
 
+// Helper function to recursively duplicate scene component hierarchy
+static USceneComponent* DuplicateSceneComponentRecursive(USceneComponent* SourceComponent, AActor* TargetActor, USceneComponent* TargetParent, int depth = 0)
+{
+	if (!SourceComponent || !TargetActor)
+	{
+		return nullptr;
+	}
+	
+	FString indent(depth * 2, ' ');
+	UE_LOG("%sRecursively duplicating component: %s (depth=%d)", 
+		   indent.c_str(), SourceComponent->GetName().ToString().c_str(), depth);
+	
+	// Duplicate the component
+	USceneComponent* NewComponent = static_cast<USceneComponent*>(SourceComponent->Duplicate());
+	if (!NewComponent)
+	{
+		UE_LOG("%s  Failed to duplicate component: %s", 
+			   indent.c_str(), SourceComponent->GetName().ToString().c_str());
+		return nullptr;
+	}
+	
+	// Set owner and register
+	NewComponent->SetOwner(TargetActor);
+	TargetActor->RegisterComponent(NewComponent);
+	
+	// Attach to parent if provided
+	if (TargetParent)
+	{
+		NewComponent->SetParentAttachment(TargetParent);
+		UE_LOG("%s  Attached %s to parent %s", 
+			   indent.c_str(), NewComponent->GetName().ToString().c_str(),
+			   TargetParent->GetName().ToString().c_str());
+	}
+	
+	// Recursively duplicate all children
+	for (USceneComponent* ChildComponent : SourceComponent->GetAttachChildren())
+	{
+		if (ChildComponent)
+		{
+			DuplicateSceneComponentRecursive(ChildComponent, TargetActor, NewComponent, depth + 1);
+		}
+	}
+	
+	UE_LOG("%s  Successfully duplicated component: %s (UUID: %u)", 
+		   indent.c_str(), NewComponent->GetName().ToString().c_str(), NewComponent->GetUUID());
+		   
+	return NewComponent;
+}
+
 void AActor::DuplicateChildComponents(AActor* TargetActor)
 {
 	if (!TargetActor)
@@ -451,7 +500,7 @@ void AActor::DuplicateChildComponents(AActor* TargetActor)
 		return;
 	}
 	
-	UE_LOG("AActor::DuplicateChildComponents: Starting child component duplication from %s to %s", 
+	UE_LOG("AActor::DuplicateChildComponents: Starting recursive child component duplication from %s to %s", 
 	       GetName().ToString().data(), TargetActor->GetName().ToString().data());
 	
 	// Get all components from source (original) actor
@@ -461,12 +510,12 @@ void AActor::DuplicateChildComponents(AActor* TargetActor)
 	UE_LOG("  Source has %d total components, Target has %d total components", 
 	       SourceAllComponents.size(), TargetAllComponents.size());
 	
-	// Find components that exist in source but not in target
+	// Find components that exist in source but not in target and duplicate them recursively
 	for (UActorComponent* SourceComponent : SourceAllComponents)
 	{
 		if (!SourceComponent) continue;
 		
-		// Check if this component exists in target (by name and type)
+		// Skip components that are already duplicated (check by name and type)
 		bool bFoundInTarget = false;
 		for (UActorComponent* TargetComponent : TargetAllComponents)
 		{
@@ -485,56 +534,88 @@ void AActor::DuplicateChildComponents(AActor* TargetActor)
 			       SourceComponent->GetName().ToString().c_str(),
 			       static_cast<int>(SourceComponent->GetComponentType()));
 			
-			// Duplicate the missing component
-			UActorComponent* NewComponent = static_cast<UActorComponent*>(SourceComponent->Duplicate());
-			if (NewComponent)
+			// Handle SceneComponent hierarchies recursively
+			if (USceneComponent* SourceSceneComp = Cast<USceneComponent>(SourceComponent))
 			{
-				NewComponent->SetOwner(TargetActor);
+				// Only duplicate if this component doesn't have a parent that we will duplicate
+				// (to avoid duplicating the same subtree multiple times)
+				USceneComponent* SourceParent = SourceSceneComp->GetAttachParent();
+				bool bParentWillBeDuplicated = false;
 				
-				// Register the component with the target actor
-				TargetActor->RegisterComponent(NewComponent);
-				
-				// If it's a SceneComponent, establish parent-child relationship
-				if (USceneComponent* SourceSceneComp = Cast<USceneComponent>(SourceComponent))
+				if (SourceParent)
 				{
-					USceneComponent* NewSceneComp = Cast<USceneComponent>(NewComponent);
-					if (NewSceneComp)
+					// Check if the parent is also missing and will be duplicated
+					for (UActorComponent* CheckComponent : SourceAllComponents)
 					{
-						// Find the equivalent parent in the target actor
-						USceneComponent* SourceParent = SourceSceneComp->GetAttachParent();
-						if (SourceParent)
+						if (CheckComponent == SourceParent)
 						{
-							// Find corresponding parent in target by name and type
-							for (UActorComponent* TargetComp : TargetActor->GetAllComponents())
+							// Check if parent is also missing in target
+							bool bParentFoundInTarget = false;
+							for (UActorComponent* TargetComp : TargetAllComponents)
 							{
-								if (USceneComponent* TargetSceneComp = Cast<USceneComponent>(TargetComp))
+								if (TargetComp && 
+								    TargetComp->GetName() == SourceParent->GetName() &&
+								    TargetComp->GetClass() == SourceParent->GetClass())
 								{
-									if (TargetSceneComp->GetName() == SourceParent->GetName() &&
-									    TargetSceneComp->GetClass() == SourceParent->GetClass())
-									{
-										// Attach the new child to the corresponding parent
-										NewSceneComp->SetParentAttachment(TargetSceneComp);
-										UE_LOG("      Attached child %s to parent %s", 
-										       NewSceneComp->GetName().ToString().c_str(),
-										       TargetSceneComp->GetName().ToString().c_str());
-										break;
-									}
+									bParentFoundInTarget = true;
+									break;
 								}
 							}
+							if (!bParentFoundInTarget)
+							{
+								bParentWillBeDuplicated = true;
+							}
+							break;
 						}
 					}
 				}
 				
-				UE_LOG("      Successfully duplicated missing component: %s (UUID: %u)", 
-				       NewComponent->GetName().ToString().c_str(), NewComponent->GetUUID());
+				// Only duplicate root components of missing subtrees
+				if (!bParentWillBeDuplicated)
+				{
+					// Find the target parent to attach to
+					USceneComponent* TargetParent = nullptr;
+					if (SourceParent)
+					{
+						// Find corresponding parent in target by name and type
+						for (UActorComponent* TargetComp : TargetActor->GetAllComponents())
+						{
+							if (USceneComponent* TargetSceneComp = Cast<USceneComponent>(TargetComp))
+							{
+								if (TargetSceneComp->GetName() == SourceParent->GetName() &&
+								    TargetSceneComp->GetClass() == SourceParent->GetClass())
+								{
+									TargetParent = TargetSceneComp;
+									break;
+								}
+							}
+						}
+					}
+					
+					// Recursively duplicate this component and all its children
+					DuplicateSceneComponentRecursive(SourceSceneComp, TargetActor, TargetParent);
+				}
 			}
 			else
 			{
-				UE_LOG("      Failed to duplicate missing component: %s", 
-				       SourceComponent->GetName().ToString().c_str());
+				// For non-scene components, duplicate normally
+				UActorComponent* NewComponent = static_cast<UActorComponent*>(SourceComponent->Duplicate());
+				if (NewComponent)
+				{
+					NewComponent->SetOwner(TargetActor);
+					TargetActor->RegisterComponent(NewComponent);
+					
+					UE_LOG("      Successfully duplicated non-scene component: %s (UUID: %u)", 
+					       NewComponent->GetName().ToString().c_str(), NewComponent->GetUUID());
+				}
+				else
+				{
+					UE_LOG("      Failed to duplicate non-scene component: %s", 
+					       SourceComponent->GetName().ToString().c_str());
+				}
 			}
 		}
 	}
 	
-	UE_LOG("AActor::DuplicateChildComponents: Child component duplication completed");
+	UE_LOG("AActor::DuplicateChildComponents: Recursive child component duplication completed");
 }
