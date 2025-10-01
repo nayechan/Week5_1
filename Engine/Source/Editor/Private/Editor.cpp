@@ -104,7 +104,8 @@ void UEditor::Update()
 	ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
 	if (CurrentLevel)
 	{
-		for (auto& Actor : CurrentLevel->GetActors())
+		TArray<AActor*> Actors = CurrentLevel->GetActorsPtrs();
+		for (auto& Actor : Actors)
 		{
 			if (Actor && Actor->GetRootComponent())
 			{
@@ -160,27 +161,49 @@ void UEditor::Update()
 		}
 	}
 
-	// 3. 선택된 액터의 BoundingBox 업데이트
-	if (AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor())
+	// 3. 선택된 오브젝트의 BoundingBox 업데이트
+	// Use UIManager's SelectedObject to show bounds for selected component
+	TObjectPtr<UObject> SelectedObject = UUIManager::GetInstance().GetSelectedObject();
+	if (SelectedObject)
 	{
-		for (const auto& Component : SelectedActor->GetOwnedComponents())
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (!CurrentLevel) return;  // SAFETY: Defensive nullptr check
+
+		uint64 ShowFlags = CurrentLevel->GetShowFlags();
+
+		if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
 		{
-			if (auto PrimitiveComponent = Cast<UPrimitiveComponent>(Component))
+			UPrimitiveComponent* PrimitiveToShow = nullptr;
+
+			// Check if SelectedObject is an Actor or a Component
+			if (AActor* SelectedActor = Cast<AActor>(SelectedObject.Get()))
 			{
-				FVector WorldMin, WorldMax;
-				PrimitiveComponent->GetWorldAABB(WorldMin, WorldMax);
-
-				uint64 ShowFlags = ULevelManager::GetInstance().GetCurrentLevel()->GetShowFlags();
-
-				if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
+				// Show bounds for actor's root component
+				if (USceneComponent* RootComp = SelectedActor->GetRootComponent())
 				{
-					BatchLines.UpdateBoundingBoxVertices(FAABB(WorldMin, WorldMax));
-				}
-				else
-				{
-					BatchLines.UpdateBoundingBoxVertices({ { 0.0f,0.0f,0.0f }, { 0.0f, 0.0f, 0.0f } });
+					PrimitiveToShow = Cast<UPrimitiveComponent>(RootComp);
 				}
 			}
+			else if (UActorComponent* SelectedComponent = Cast<UActorComponent>(SelectedObject.Get()))
+			{
+				// Show bounds for selected component
+				PrimitiveToShow = Cast<UPrimitiveComponent>(SelectedComponent);
+			}
+
+			if (PrimitiveToShow)
+			{
+				FVector WorldMin, WorldMax;
+				PrimitiveToShow->GetWorldAABB(WorldMin, WorldMax);
+				BatchLines.UpdateBoundingBoxVertices(FAABB(WorldMin, WorldMax));
+			}
+			else
+			{
+				BatchLines.UpdateBoundingBoxVertices({ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} });
+			}
+		}
+		else
+		{
+			BatchLines.UpdateBoundingBoxVertices({ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} });
 		}
 	}
 	else
@@ -201,7 +224,10 @@ void UEditor::RenderEditor(UCamera* InCamera)
 	// Render Gizmo & Billboard
 	if (InCamera)
 	{
-		AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor();
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (!CurrentLevel) return;  // SAFETY: Defensive nullptr check
+
+		AActor* SelectedActor = CurrentLevel->GetSelectedActor();
 		if (!SelectedActor) return;
 
 		Gizmo.RenderGizmo(SelectedActor, InCamera);
@@ -596,19 +622,29 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			// 드래그 끝나면 선택 액터의 프리미티브를 더티 큐에 등록
 			MarkActorPrimitivesDirty(Gizmo.GetSelectedActor());
 
-			if (Gizmo.GetSelectedActor()->GetRootComponent())
+			// Update transform of the dragged component and its children
+			if (USceneComponent* DraggedComponent = Gizmo.GetTargetComponent())
+			{
+				DraggedComponent->UpdateWorldTransform();
+			}
+			// Also update root component in case it wasn't the dragged component
+			else if (Gizmo.GetSelectedActor()->GetRootComponent())
 			{
 				Gizmo.GetSelectedActor()->GetRootComponent()->UpdateWorldTransform();
 			}
 
 			// Octree 동적 목록으로 이동
-			for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)  // SAFETY: Defensive nullptr check
 			{
-				if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
+				for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
 				{
-					if (Prim->GetPrimitiveType() != EPrimitiveType::BillBoard)
+					if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
 					{
-						ULevelManager::GetInstance().GetCurrentLevel()->MoveToDynamic(Prim);
+						if (Prim->GetPrimitiveType() != EPrimitiveType::Billboard)
+						{
+							CurrentLevel->MoveToDynamic(Prim);
+						}
 					}
 				}
 			}
@@ -716,7 +752,8 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 TArray<UPrimitiveComponent*> UEditor::FindCandidatePrimitives(ULevel* InLevel)
 {
 	TArray<UPrimitiveComponent*> Candidate;
-	for (AActor* Actor : InLevel->GetActors())
+	TArray<AActor*> Actors = InLevel->GetActorsPtrs();
+	for (AActor* Actor : Actors)
 	{
 		for (auto& ActorComponent : Actor->GetOwnedComponents())
 		{
@@ -745,7 +782,12 @@ void UEditor::EnsureBVHUpToDate(ULevel* InLevel)
 		RawPrims.reserve(LevelPrims.size());
 		for (auto& Prim : LevelPrims)
 		{
-			RawPrims.push_back(Prim);
+			// Safety check: Only add valid primitives (not deleted or pending kill)
+			UPrimitiveComponent* PrimPtr = Prim.Get();
+			if (PrimPtr && !PrimPtr->IsPendingKill())
+			{
+				RawPrims.push_back(PrimPtr);
+			}
 		}
 
 		SceneBVH.Build(RawPrims);
@@ -972,16 +1014,22 @@ FVector UEditor::GetGizmoDragRotation(UCamera* InActiveCamera, FRay& WorldRay)
 			Angle = -Angle;
 		}
 
-		FQuaternion StartRotQuat = FQuaternion::FromEuler(Gizmo.GetDragStartActorRotation());
+		// Use stored Quaternion to avoid Euler wrapping issues
+		FQuaternion StartRotQuat = Gizmo.GetDragStartActorRotationQuat();
 		FQuaternion DeltaRotQuat = FQuaternion::FromAxisAngle(Gizmo.GetGizmoAxis(), Angle);
+		FQuaternion ResultQuat;
+
 		if (Gizmo.IsWorldMode())
 		{
-			return (DeltaRotQuat * StartRotQuat).ToEuler();
+			ResultQuat = DeltaRotQuat * StartRotQuat;
 		}
 		else
 		{
-			return (StartRotQuat * DeltaRotQuat).ToEuler();
+			ResultQuat = StartRotQuat * DeltaRotQuat;
 		}
+
+		// Convert to Euler only once at the end
+		return ResultQuat.ToEuler();
 	}
 	return Gizmo.GetActorRotation();
 }

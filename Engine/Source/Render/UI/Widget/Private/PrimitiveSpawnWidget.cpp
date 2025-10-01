@@ -8,6 +8,7 @@
 #include "Actor/Public/SquareActor.h"
 #include "Actor/Public/TriangleActor.h"
 #include "Actor/Public/StaticMeshActor.h"
+#include "Actor/Public/BillboardActor.h"
 
 UPrimitiveSpawnWidget::UPrimitiveSpawnWidget()
 	: UWidget("Primitive Spawn Widget")
@@ -33,23 +34,46 @@ void UPrimitiveSpawnWidget::RenderWidget()
 
 	// Primitive 타입 선택 DropDown
 	const char* PrimitiveTypes[] = {
-		//"Sphere",
-		//"Cube",
-		//"Triangle",
-		//"Square",
-		"StaticMesh"
+		"Sphere",
+		"Cube",
+		"Triangle",
+		"Square",
+		"StaticMesh",
+		"Billboard",
 	};
 
-	// StaticMesh만 선택 가능하도록 고정
-	int TypeNumber = 0; // StaticMesh만 있으므로 항상 0
+	const int TypeCount = static_cast<int>(sizeof(PrimitiveTypes) / sizeof(PrimitiveTypes[0]));
+
+	// compute combo index from current SelectedPrimitiveType so selection persists
+	int TypeNumber = 0;
+	switch (SelectedPrimitiveType)
+	{
+	case EPrimitiveType::Sphere:     TypeNumber = 0; break;
+	case EPrimitiveType::Cube:       TypeNumber = 1; break;
+	case EPrimitiveType::Triangle:   TypeNumber = 2; break;
+	case EPrimitiveType::Square:     TypeNumber = 3; break;
+	case EPrimitiveType::StaticMesh: TypeNumber = 4; break;
+	case EPrimitiveType::Billboard:  TypeNumber = 5; break;
+	default:                        TypeNumber = 0; break;
+	}
 
 	ImGui::Text("Primitive Type:");
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(120);
-	ImGui::Combo("##PrimitiveType", &TypeNumber, PrimitiveTypes, 1);
-
-	// StaticMesh로 고정 (EPrimitiveType::StaticMesh = 5)
-	SelectedPrimitiveType = EPrimitiveType::StaticMesh;
+	if (ImGui::Combo("##PrimitiveType", &TypeNumber, PrimitiveTypes, TypeCount))
+	{
+		// user changed selection -> update SelectedPrimitiveType
+		switch (TypeNumber)
+		{
+		case 0: SelectedPrimitiveType = EPrimitiveType::Sphere; break;
+		case 1: SelectedPrimitiveType = EPrimitiveType::Cube; break;
+		case 2: SelectedPrimitiveType = EPrimitiveType::Triangle; break;
+		case 3: SelectedPrimitiveType = EPrimitiveType::Square; break;
+		case 4: SelectedPrimitiveType = EPrimitiveType::StaticMesh; break;
+		case 5: SelectedPrimitiveType = EPrimitiveType::Billboard; break;
+		default: SelectedPrimitiveType = EPrimitiveType::Sphere; break;
+		}
+	}
 
 	// Spawn 버튼과 개수 입력
 	ImGui::Text("Number of Spawn:");
@@ -120,6 +144,10 @@ void UPrimitiveSpawnWidget::SpawnActors() const
 		{
 			NewActor = CurrentLevel->SpawnActorToLevel(AStaticMeshActor::StaticClass());
 		}
+		else if (SelectedPrimitiveType == EPrimitiveType::Billboard)
+		{
+			NewActor = CurrentLevel->SpawnActorToLevel(UBillboardActor::StaticClass());
+		}
 
 		if (NewActor)
 		{
@@ -133,6 +161,7 @@ void UPrimitiveSpawnWidget::SpawnActors() const
 			// 임의의 스케일 (0.5 ~ 2.0 범위)
 			float RandomScale = 0.5f + (static_cast<float>(rand()) / RAND_MAX) * 1.5f;
 			NewActor->SetActorScale3D(FVector(RandomScale, RandomScale, RandomScale));
+			CurrentLevel->AddActorToDynamic(NewActor);
 
 			UE_LOG("ControlPanel: (%.2f, %.2f, %.2f) 지점에 Actor를 배치했습니다", RandomX, RandomY, RandomZ);
 		}

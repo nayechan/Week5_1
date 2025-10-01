@@ -1,7 +1,11 @@
 #include "pch.h"
 #include "Component/Public/SceneComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
+#include "Utility/Public/JsonSerializer.h"
+#include "Actor/Public/Actor.h"
 #include "Manager/Asset/Public/AssetManager.h"
+#include "Manager/Level/Public/LevelManager.h"
+#include "Level/Public/Level.h"
 #include "Utility/Public/JsonSerializer.h"
 #include "Global/Matrix.h"
 #include "Global/Quaternion.h"
@@ -19,6 +23,39 @@ USceneComponent::USceneComponent()
 	WorldTransformInverse = FMatrix::Identity();
 	bIsTransformDirty = true;
 	bIsTransformDirtyInverse = true;
+}
+
+USceneComponent::~USceneComponent()
+{
+	UE_LOG("USceneComponent::~USceneComponent(): Destroying %s with %d children",
+	       GetName().ToString().c_str(), Children.size());
+
+	// 자식들의 부모 참조를 해제 (자식들 자체는 삭제하지 않음 - Actor가 소유하고 있음)
+	// SAFETY: Use copy to avoid issues if destructor modifies Children array
+	TArray<USceneComponent*> ChildrenCopy = Children;
+	for (USceneComponent* Child : ChildrenCopy)
+	{
+		if (Child && !Child->IsPendingKill())
+		{
+			UE_LOG("  Clearing parent reference for child: %s",
+			       Child->GetName().ToString().c_str());
+			Child->ParentAttachment = nullptr;  // 부모 참조만 해제
+		}
+	}
+	Children.clear();
+
+	// 내가 다른 컴포넌트의 자식이었다면, 부모에서 나를 제거
+	// SAFETY: Only call if parent is still valid (not being destroyed)
+	if (ParentAttachment && !ParentAttachment->IsPendingKill())
+	{
+		UE_LOG("  Removing self from parent: %s",
+		       ParentAttachment->GetName().ToString().c_str());
+		ParentAttachment->RemoveChild(this);
+		ParentAttachment = nullptr;
+	}
+	
+	UE_LOG("USceneComponent::~USceneComponent(): Destruction completed for %s", 
+	       GetName().ToString().c_str());
 }
 
 void USceneComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
@@ -86,6 +123,11 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 
 void USceneComponent::AddChild(USceneComponent* NewChild)
 {
+	if (!NewChild)
+	{
+		return;
+	}
+
 	Children.push_back(NewChild);
 
 	// Immediately update child's world transform
@@ -93,12 +135,42 @@ void USceneComponent::AddChild(USceneComponent* NewChild)
 	{
 		NewChild->MarkAsDirty();
 		NewChild->UpdateWorldTransform();
+
+		// CRITICAL: Register child PrimitiveComponents with the Level for rendering
+		if (UPrimitiveComponent* PrimitiveChild = Cast<UPrimitiveComponent>(NewChild))
+		{
+			// Get current level and register the component
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)
+			{
+				CurrentLevel->RegisterPrimitiveComponent(PrimitiveChild);
+			}
+		}
+	}
+
+	// 자식 컴포넌트를 Actor의 소유 목록에도 추가
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor && NewChild->GetOwner() != OwnerActor)
+	{
+		OwnerActor->RegisterComponent(NewChild);
 	}
 }
 
 void USceneComponent::RemoveChild(USceneComponent* ChildDeleted)
 {
+	if (!ChildDeleted)
+	{
+		return;
+	}
+
 	Children.erase(std::remove(Children.begin(), Children.end(), ChildDeleted), Children.end());
+
+	// 자식 컴포넌트를 Actor의 소유 목록에서도 제거
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor)
+	{
+		OwnerActor->UnregisterComponent(ChildDeleted);
+	}
 }
 
 void USceneComponent::MarkAsDirty()
@@ -111,9 +183,14 @@ void USceneComponent::MarkAsDirty()
 		PrimitiveComp->MarkWorldAABBDirty();
 	}
 
-	for (USceneComponent* Child : Children)
+	// SAFETY: Use copy to avoid iterator invalidation if Children is modified during iteration
+	TArray<USceneComponent*> ChildrenCopy = Children;
+	for (USceneComponent* Child : ChildrenCopy)
 	{
-		Child->MarkAsDirty();
+		if (Child && !Child->IsPendingKill())
+		{
+			Child->MarkAsDirty();
+		}
 	}
 }
 
@@ -121,12 +198,16 @@ void USceneComponent::SetRelativeLocation(const FVector& Location)
 {
 	RelativeLocation = Location;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetRelativeRotation(const FVector& Rotation)
 {
 	RelativeRotation = Rotation;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetRelativeScale3D(const FVector& Scale)
@@ -140,6 +221,8 @@ void USceneComponent::SetRelativeScale3D(const FVector& Scale)
 		ActualScale.Z = MinScale;
 	RelativeScale3D = ActualScale;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetUniformScale(bool bIsUniform)
@@ -242,12 +325,78 @@ void USceneComponent::UpdateWorldTransform()
 	// IMPORTANT: Update inverse transform whenever WorldTransform changes
 	if (bIsTransformDirtyInverse)
 	{
+		// Directly invert the WorldTransform matrix
+		// This is mathematically correct for both root and child components
 		WorldTransformInverse = WorldTransform.Inverse();
 		bIsTransformDirtyInverse = false;
 	}
 
-	for (USceneComponent* Child : Children)
+	bIsTransformDirty = false;
+
+	// SAFETY: Use copy to avoid iterator invalidation if Children is modified during iteration
+	TArray<USceneComponent*> ChildrenCopy = Children;
+	for (USceneComponent* Child : ChildrenCopy)
 	{
-		Child->UpdateWorldTransform();
+		if (Child && !Child->IsPendingKill())
+		{
+			Child->UpdateWorldTransform();
+		}
 	}
+}
+
+void USceneComponent::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+	
+	// SceneComponent는 자식들을 깊게 복제하지 않음
+	// 자식들은 별도로 Actor level에서 복제됨
+	UE_LOG("USceneComponent::DuplicateSubObjects: %s - maintaining %d children references", 
+	       GetName().ToString().c_str(), Children.size());
+}
+
+UObject* USceneComponent::Duplicate()
+{
+	UE_LOG("USceneComponent::Duplicate: Starting duplication of %s (UUID: %u)", 
+	       GetName().ToString().data(), GetUUID());
+	
+	// NewObject를 사용하여 새로운 SceneComponent 생성
+	USceneComponent* NewComponent = NewObject<USceneComponent>(nullptr, GetClass());
+	if (!NewComponent)
+	{
+		UE_LOG("USceneComponent::Duplicate: Failed to create new component!");
+		return nullptr;
+	}
+	
+	UE_LOG("USceneComponent::Duplicate: New component created with UUID: %u", NewComponent->GetUUID());
+	
+	// SceneComponent 속성들 복사
+	NewComponent->RelativeLocation = RelativeLocation;
+	NewComponent->RelativeRotation = RelativeRotation;
+	NewComponent->RelativeScale3D = RelativeScale3D;
+	NewComponent->bIsUniformScale = bIsUniformScale;
+	
+	// UActorComponent 속성들 복사
+	NewComponent->ComponentType = ComponentType;
+	NewComponent->bComponentTickEnabled = bComponentTickEnabled;
+	
+	// Transform 상태 초기화
+	NewComponent->bIsTransformDirty = true;
+	NewComponent->bIsTransformDirtyInverse = true;
+	
+	// IMPORTANT: 자식들은 복제하지 않음! Actor level에서 처리됨
+	// ParentAttachment도 복제하지 않음! Actor level에서 재설정됨
+	NewComponent->ParentAttachment = nullptr;
+	NewComponent->Children.clear();
+	
+	// 서브 오브젝트 복제
+	NewComponent->DuplicateSubObjects();
+	
+	// Owner는 복제 후에 다시 설정됨
+	NewComponent->SetOwner(nullptr);
+	
+	UE_LOG("USceneComponent::Duplicate: Duplication completed for %s (UUID: %u) -> %s (UUID: %u)", 
+	       GetName().ToString().data(), GetUUID(), 
+	       NewComponent->GetName().ToString().data(), NewComponent->GetUUID());
+	
+	return NewComponent;
 }

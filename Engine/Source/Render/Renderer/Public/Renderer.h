@@ -9,7 +9,6 @@ class UPipeline;
 class UDeviceResources;
 class UPrimitiveComponent;
 class UStaticMeshComponent;
-class UBillBoardComponent;
 class UTextRenderComponent;
 class AActor;
 class AGizmo;
@@ -18,6 +17,7 @@ class UFontRenderer;
 class FViewport;
 class UCamera;
 class UCullingManager;
+class UBillboardComponent;
 
 /**
  * @brief Rendering Pipeline 전반을 처리하는 클래스
@@ -77,6 +77,7 @@ public:
 	void RenderEnd() const;
 	void RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState);
 	void RenderText(UTextRenderComponent* TextRenderComp, UCamera* InCurrentCamera);
+	// TODO: RenderBillboard
 	void RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3D11RasterizerState* InRasterizerState);
 	void RenderPrimitive(const FEditorPrimitive& InPrimitive, const FRenderState& InRenderState);
 	void RenderPrimitiveIndexed(const FEditorPrimitive& InPrimitive, const FRenderState& InRenderState,

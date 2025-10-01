@@ -27,6 +27,7 @@
 #include "Render/Culling/Public/OcclusionCuller.h"
 #include <immintrin.h>
 #include "Component/Public/TextRenderComponent.h"
+#include "Component/Public/BillboardComponent.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
 
@@ -451,41 +452,86 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
-			case EPrimitiveType::StaticMesh:
+		case EPrimitiveType::StaticMesh:
+		{
+			UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+			if (MeshComponent)
 			{
-				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-				if (MeshComponent)
+				// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
+				int32 LodIndex = MeshComponent->GetCurrentLODIndex();
+				if (LodIndex >= 0 && LodIndex < 3)
 				{
-					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
-					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
-
-				/*FVector Min, Max;
-				MeshComponent->GetWorldAABB(Min, Max);
-				FVector CompLocation = (Min + Max) * 0.5f;
-				FVector CamerLocation = InCurrentCamera->GetLocation();
-				float DistSq = (CamerLocation - CompLocation).LengthSquared();
-
-				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-				int32 LodIndex = 0;
-				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
-				{
-					if (DistSq >= LodDistanceSq[i])
-					{
-						LodIndex = i;
-						break;
-					}
-					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-					if (LodIndex >= 0 && LodIndex < 3)
-					{
-						lodCounts[LodIndex]++;
-					}
+					lodCounts[LodIndex]++;
 				}
 				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-				break;
+            }
+			break;
+        }
+		case EPrimitiveType::Billboard:
+		{
+			UBillboardComponent* BillboardComp = Cast<UBillboardComponent>(primitive);
+			if (BillboardComp)
+			{
+				// Make the component face camera (already in your code)
+				BillboardComp->UpdateFacingCamera(InCurrentCamera, false);
+
+				// Get sprite texture
+				UTexture* SpriteTex = BillboardComp->GetSprite();
+				if (!SpriteTex) break;
+
+				const FTextureRenderProxy* Proxy = SpriteTex->GetRenderProxy();
+				if (!Proxy) break;
+
+				// Prepare pipeline for textured quad
+				FPipelineInfo PipelineInfo = {
+					TextureInputLayout,
+					TextureVertexShader,
+					LoadedRasterizerState,
+					DefaultDepthStencilState,
+					TexturePixelShader,
+					nullptr,
+				};
+				Pipeline->UpdatePipeline(PipelineInfo);
+
+				// World matrix: use component world transform (respects attachment)
+				const FMatrix WorldMatrix = BillboardComp->GetWorldTransform();
+				Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
+				UpdateConstant(WorldMatrix); // sets b0.world for TextureShader.hlsl
+
+				// Bind texture and sampler (TextureShader expects DiffuseTexture at t0)
+				Pipeline->SetTexture(0, false, Proxy->GetSRV());
+				Pipeline->SetSamplerState(0, false, Proxy->GetSampler());
+
+				// Create a unit quad centered at origin (two triangles). Local plane Z=0.
+				// Vertex format: Position(float3), Normal(float3), Color(float4), TexCoord(float2)
+				FNormalVertex QuadVerts[6] = {
+					// tri 1
+					{ { -0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 1.0f} },
+					{ {  0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 1.0f} },
+					{ {  0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 0.0f} },
+					// tri 2
+					{ {  0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 0.0f} },
+					{ { -0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 0.0f} },
+					{ { -0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 1.0f} },
+				};
+
+				// Create a transient vertex buffer for the quad
+				ID3D11Buffer* VB = BillboardComp->GetVertexBuffer();
+				if (VB)
+				{
+					// Bind and draw (triangle list, 6 verts)
+					Pipeline->SetVertexBuffer(VB, sizeof(FNormalVertex));
+					Pipeline->Draw(6, 0);
+
+					// cleanup transient buffer
+					// ReleaseVertexBuffer(VB);
+				}
 			}
-			default:
-				RenderPrimitiveDefault(primitive, LoadedRasterizerState);
-				break;
+			break;
+		}
+		default:
+			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
+			break;
 		}
 	};
 
@@ -493,18 +539,25 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옵트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
+		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, nullptr, &Context, RenderCallback, nullptr);
 	}
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
+	
+	uint32 dynamicRenderedCount = 0;
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
-		if (!DynPrim)
+		// Skip null or deleted components
+		if (!DynPrim || DynPrim->IsPendingKill())
 		{
 			continue;
 		}
 		if (!DynPrim->IsVisible())
 		{
+			if (bIsPIEWorld)
+			{
+				printf("PIE Mode: Dynamic primitive is not visible: %s\n", DynPrim->GetName().ToString().c_str());
+			}
 			continue;
 		}
 		FVector WorldMin, WorldMax;
@@ -514,7 +567,20 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		{
 			continue;
 		}
+		
+		dynamicRenderedCount++;
+		if (bIsPIEWorld)
+		{
+			printf("PIE Mode: Rendering dynamic primitive: %s\n", DynPrim->GetName().ToString().c_str());
+		}
+		
 		RenderCallback(DynPrim, nullptr);
+	}
+	
+	// PIE 모드에서 최종 렌더링 통계 로그
+	if (bIsPIEWorld)
+	{
+		printf("PIE Mode: Successfully rendered %d dynamic primitives\n", dynamicRenderedCount);
 	}
 	
 }
@@ -620,6 +686,12 @@ void URenderer::RenderEnd() const
 
 void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState)
 {
+	// Safety check: Component might have been deleted or marked for deletion
+	if (!InMeshComp || InMeshComp->IsPendingKill())
+	{
+		return;
+	}
+
     UStaticMesh* MeshAsset = InMeshComp->GetStaticMesh();
 	if (!MeshAsset || !MeshAsset->IsValid()) return;
 
@@ -714,7 +786,7 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 
 void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCurrentCamera)
 {
-	if (!InCurrentCamera)
+	if (!InCurrentCamera || !InTextRenderComp)
 	{
 		return;
 	}
@@ -722,7 +794,7 @@ void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCu
 	InTextRenderComp->UpdateRotationMatrix(InCurrentCamera->GetLocation());
 	FMatrix RT = InTextRenderComp->GetRTMatrix();
 	// TODO: FMatrix WorldMatrix = InTextRenderComp->GetWorldMatrix();
-	
+
 	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
 	FontRenderer->RenderText(InTextRenderComp->GetText().c_str(), RT, viewProjConstData);
 }

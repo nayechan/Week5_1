@@ -12,6 +12,7 @@ class USceneComponent : public UActorComponent
 
 public:
 	USceneComponent();
+	virtual ~USceneComponent();
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
@@ -20,6 +21,7 @@ public:
 	void RemoveChild(USceneComponent* ChildDeleted);
 
 	const TArray<USceneComponent*>& GetAttachChildren() const { return Children; }
+	USceneComponent* GetAttachParent() const { return ParentAttachment; }
 
 	void MarkAsDirty();
 
@@ -41,6 +43,10 @@ public:
 	const FMatrix& GetWorldTransform() const;
 	const FMatrix& GetWorldTransformInverse() const;
 	void UpdateWorldTransform();
+
+	// Duplication support
+	void DuplicateSubObjects() override;
+	UObject* Duplicate() override;
 
 private:
 	mutable bool bIsTransformDirty = true;

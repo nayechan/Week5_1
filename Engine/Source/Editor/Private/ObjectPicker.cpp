@@ -33,10 +33,10 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 
 	for (UPrimitiveComponent* Primitive : Candidate)
 	{
-		if (Primitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+		/*if (Primitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 		{
 			continue;
-		}
+		}*/ 
 		FMatrix ModelMat = Primitive->GetWorldTransform();
 		FRay ModelRay = GetModelRay(WorldRay, Primitive);
 		if (IsRayPrimitiveCollided(InActiveCamera, ModelRay, Primitive, ModelMat, &PrimitiveDistance))
@@ -56,7 +56,7 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 
 bool UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const FRay& WorldRay, UPrimitiveComponent* Primitive, float* OutDistance)
 {
-	if (!Primitive || Primitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+	if (!Primitive)
 	{
 		if (OutDistance)
 		{
@@ -347,7 +347,7 @@ bool UObjectPicker::IsRayTriangleCollided(UCamera* InActiveCamera, const FRay& R
 	if (abs(Determinant) <= NoInverse) return false;
 
 	// Back-face culling
-	if (Determinant >= 0.0f) return false;
+	// if (Determinant >= 0.0f) return false;
 
 	float V = Result.Dot(CrossE2Ray) / Determinant;
 	if (V < 0 || V > 1) return false;

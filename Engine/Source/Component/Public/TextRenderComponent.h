@@ -3,8 +3,6 @@
 #include "Component/Public/PrimitiveComponent.h"
 #include "Global/Matrix.h"
 
-class UMaterial;
-
 UCLASS()
 class UTextRenderComponent : public UPrimitiveComponent
 {

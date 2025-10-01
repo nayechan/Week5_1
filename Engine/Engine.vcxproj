@@ -237,6 +237,7 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="Source\Actor\Public\Actor.h" />
+    <ClInclude Include="Source\Actor\Public\BillboardActor.h" />
     <ClInclude Include="Source\Actor\Public\CubeActor.h" />
     <ClInclude Include="Source\Actor\Public\SphereActor.h" />
     <ClInclude Include="Source\Actor\Public\SquareActor.h" />
@@ -252,6 +253,7 @@
       <DeploymentContent>false</DeploymentContent>
     </ClInclude>
     <ClInclude Include="Source\Component\Public\ActorComponent.h" />
+    <ClInclude Include="Source\Component\Public\BillboardComponent.h" />
     <ClInclude Include="Source\Component\Public\LineComponent.h" />
     <ClInclude Include="Source\Component\Public\PrimitiveComponent.h" />
     <ClInclude Include="Source\Component\Public\SceneComponent.h" />
@@ -355,6 +357,7 @@
     <ClInclude Include="Source\Render\UI\Overlay\Public\StatOverlay.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\ActorDetailWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\ActorTerminationWidget.h" />
+    <ClInclude Include="Source\Render\UI\Widget\Public\BillboardComponentWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\CameraControlWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\ConsoleWidget.h" />
     <ClInclude Include="Source\Render\UI\Widget\Public\FPSWidget.h" />
@@ -408,6 +411,7 @@
     </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Source\Actor\Private\Actor.cpp" />
+    <ClCompile Include="Source\Actor\Private\BillboardActor.cpp" />
     <ClCompile Include="Source\Actor\Private\CubeActor.cpp" />
     <ClCompile Include="Source\Actor\Private\SphereActor.cpp" />
     <ClCompile Include="Source\Actor\Private\SquareActor.cpp" />
@@ -425,6 +429,7 @@
       <DeploymentContent>false</DeploymentContent>
     </ClCompile>
     <ClCompile Include="Source\Component\Private\ActorComponent.cpp" />
+    <ClCompile Include="Source\Component\Private\BillboardComponent.cpp" />
     <ClCompile Include="Source\Component\Private\LineComponent.cpp" />
     <ClCompile Include="Source\Component\Private\PrimitiveComponent.cpp" />
     <ClCompile Include="Source\Component\Private\SceneComponent.cpp" />
@@ -515,6 +520,7 @@
     <ClCompile Include="Source\Render\UI\Overlay\Private\StatOverlay.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\ActorDetailWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\ActorTerminationWidget.cpp" />
+    <ClCompile Include="Source\Render\UI\Widget\Private\BillboardComponentWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\CameraControlWIdget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\ConsoleWidget.cpp" />
     <ClCompile Include="Source\Render\UI\Widget\Private\FPSWidget.cpp" />

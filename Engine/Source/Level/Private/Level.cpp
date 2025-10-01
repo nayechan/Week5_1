@@ -24,6 +24,19 @@ IMPLEMENT_CLASS(ULevel, UObject)
 
 ULevel::ULevel() = default;
 
+TArray<AActor*> ULevel::GetActorsPtrs() const
+{
+	TArray<AActor*> ActorPtrs;
+	for (const auto& Actor : LevelActors)
+	{
+		if (Actor)
+		{
+			ActorPtrs.push_back(Actor.Get());
+		}
+	}
+	return ActorPtrs;
+}
+
 ULevel::ULevel(const FName& InName)
 	: UObject(InName)
 {
@@ -113,20 +126,11 @@ void ULevel::Init()
 	FAABB WorldBounds(FVector(-10000, -10000, -10000), FVector(10000, 10000, 10000));
 	StaticOctree.Initialize(WorldBounds);
 
-	// LevelActors를 Actors 배열과 동기화 (PIE 지원을 위함)
-	Actors.clear();
-	for (const auto& Actor : LevelActors)
-	{
-		if (Actor)
-		{
-			Actors.push_back(Actor.Get());
-		}
-	}
+	// PIE 지원을 위한 별도 배열 동기화 제거 (통합된 배열 사용)
+	UE_LOG("ULevel::Init: Processing %zu LevelActors", LevelActors.size());
 
 	// IMPORTANT: Initialize all world transforms FIRST before processing primitives
 	// 월드 변환을 먼저 업데이트해야 GetWorldAABB가 올바른 값을 반환함
-	UE_LOG("ULevel::Init: Processing %zu LevelActors and %zu Actors", LevelActors.size(), Actors.size());
-
 	for (auto& Actor : LevelActors)
 	{
 		if (Actor && Actor->GetRootComponent())
@@ -135,34 +139,11 @@ void ULevel::Init()
 		}
 	}
 
-	// 레벨 안의 모든 액터 → PrimitiveComponent 순회해서 Octree에 삽입 및 LevelPrimitiveComponents에 추가
-	// LevelActors 배열 처리
+	// 레벨 안의 모든 액터를 Octree에 삽입 및 LevelPrimitiveComponents에 추가
 	for (auto& Actor : LevelActors)
 	{
 		if (!Actor) continue;
 		ProcessActorForInit(Actor.Get());
-	}
-
-	// PIE를 위해 Actors 배열도 처리 (중복 방지)
-	for (AActor* Actor : Actors)
-	{
-		if (!Actor) continue;
-
-		// LevelActors에 이미 있는 Actor는 스킵
-		bool bAlreadyProcessed = false;
-		for (const auto& LevelActor : LevelActors)
-		{
-			if (LevelActor.Get() == Actor)
-			{
-				bAlreadyProcessed = true;
-				break;
-			}
-		}
-
-		if (!bAlreadyProcessed)
-		{
-			ProcessActorForInit(Actor);
-		}
 	}
 
 	UE_LOG("ULevel::Init: Final LevelPrimitiveComponents count: %zu", LevelPrimitiveComponents.size());
@@ -171,38 +152,41 @@ void ULevel::Init()
 void ULevel::Update()
 {
 	// Process Delayed Task
+	static int updateCallCount = 0;
+	updateCallCount++;
+	if (!ActorsToDelete.empty())
+	{
+		UE_LOG("Level::Update (frame %d): ActorsToDelete에 %zu개 대기 중, ProcessPendingDeletions 호출 예정",
+		       updateCallCount, ActorsToDelete.size());
+	}
 	ProcessPendingDeletions();
 
-	// Update all actor transforms before ticking and rendering
-	// Only root components need to be updated - they will recursively update children
+	// 최적화: Transform 업데이트를 루트 컴포넌트만 수행 (자식들은 재귀적으로 업데이트)
 	static int frameCount = 0;
 	int updateCount = 0;
+	int tickCount = 0;
+	
 	for (auto& Actor : LevelActors)
 	{
 		if (Actor && Actor->GetRootComponent())
 		{
+			// 루트 컴포넌트만 업데이트 (자식들은 재귀적으로 처리됨)
 			Actor->GetRootComponent()->UpdateWorldTransform();
 			updateCount++;
+		}
+		
+		// Tick 처리
+		if (Actor && Actor->IsActorTickEnabled())
+		{
+			Actor->Tick(0.0f); // TODO: DeltaTime 매개변수 추가 필요
+			tickCount++;
 		}
 	}
 
 	// Log every 60 frames to check performance
 	if (++frameCount % 60 == 0)
 	{
-		UE_LOG("Level::Update: Updated %d root transforms", updateCount);
-	}
-
-	for (auto& Actor : LevelActors)
-	{
-		if (Actor)
-		{
-			// Tick 전에 월드 변환 업데이트
-			if (USceneComponent* RootComponent = Actor->GetRootComponent())
-			{
-				RootComponent->UpdateWorldTransform();
-			}
-			Actor->Tick(0.0f); // TODO: DeltaTime 매개변수 추가 필요
-		}
+		UE_LOG("Level::Update: Updated %d transforms, Ticked %d actors", updateCount, tickCount);
 	}
 }
 
@@ -224,9 +208,8 @@ void ULevel::Cleanup()
 	}
 	LevelActors.clear();
 
-	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컸테이너들을 비웁니다.
+	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컴테이너들을 비웁니다.
 	ActorsToDelete.clear();
-	Actors.clear(); // PIE 지원을 위한 Actors 배열도 정리
 	LevelPrimitiveComponents.clear();
 
 	// 4. 선택된 액터 참조를 안전하게 해제합니다.
@@ -250,9 +233,8 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 		{
 			NewActor->SetName(InName);
 		}
-		// LevelActors와 Actors 모두 업데이트 (PIE 지원)
+		// 통합된 Actor 배열에 추가
 		LevelActors.push_back(TObjectPtr(NewActor));
-		Actors.push_back(NewActor);
 		NewActor->BeginPlay();
 
 		// Use GetAllComponents() to include nested children
@@ -264,7 +246,7 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComp));
 
 				// 빌보드 컴포넌트가 아니면 DynamicPrimitives에도 추가 (렌더링용)
-				if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::BillBoard)
+				if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::Billboard)
 				{
 					DynamicPrimitives.push_back(TObjectPtr(PrimitiveComp));
 				}
@@ -315,33 +297,31 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 		// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
 		if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
 		{
-			if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::BillBoard)
-			{
-				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
-				UE_LOG("  -> Added to BVH: %s (Owner: %s)",
-					   PrimitiveComponent->GetName().ToString().c_str(),
-					   PrimitiveComponent->GetOwner() ? PrimitiveComponent->GetOwner()->GetName().ToString().c_str() : "None");
-			}
-			else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard &&
-					 (ShowFlags & EEngineShowFlags::SF_BillboardText) &&
-					 (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
-			{
-				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
-				UE_LOG("  -> Added Billboard to BVH: %s", PrimitiveComponent->GetName().ToString().c_str());
-			}
-		}
-		else
-		{
-			UE_LOG("  -> Skipping invisible or filtered component: %s (Visible: %d, ShowFlags: %llu)",
-				   PrimitiveComponent->GetName().ToString().c_str(),
-				   PrimitiveComponent->IsVisible(),
-				   ShowFlags);
+				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));			
 		}
 	}
-
-	UE_LOG("Level::AddLevelPrimitiveComponent completed\n");
 }
+void ULevel::AddActorToDynamic(AActor* Actor)
+{
+	if (!Actor) return;
 
+	for (auto& Component : Actor->GetOwnedComponents())
+	{
+		if (Component->GetComponentType() >= EComponentType::Primitive)
+		{
+			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
+			if (!PrimitiveComponent) continue;
+
+			// 빌보드 컴포넌트는 추가하지 않음
+			/*if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard)
+				continue;*/
+
+				// 런타임에 생성된 오브젝트는 DynamicPrimitives에 추가
+				// 나중에 필요시 MoveToDynamic/MoveToStatic으로 이동 가능
+			DynamicPrimitives.push_back(TObjectPtr(PrimitiveComponent));
+		}
+	}
+}
 
 void ULevel::SetSelectedActor(AActor* InActor)
 {
@@ -376,30 +356,50 @@ bool ULevel::DestroyActor(AActor* InActor)
 		SelectedActor = nullptr;
 	}
 
-	// Remove Primitive Component
-	for (const auto& Component : InActor->GetOwnedComponents())
+	// CRITICAL FIX: Remove all references to components BEFORE deleting the actor
+	// to avoid dangling pointer access and heap corruption
+
+	// Step 1: Get all components while actor is still valid
+	TArray<UActorComponent*> AllComponents = InActor->GetAllComponents();
+	UE_LOG("Level: DestroyActor - Removing %d components from %s", AllComponents.size(), InActor->GetName().ToString().data());
+
+	// Step 2: Remove components from all collections BEFORE deleting actor memory
+	for (UActorComponent* ActorComponent : AllComponents)
 	{
-		UActorComponent* ActorComponent = Component.Get();
-		const auto& Iterator = std::find(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(), ActorComponent);
-		if(Iterator != LevelPrimitiveComponents.end())
-			LevelPrimitiveComponents.erase(Iterator);
-		else if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComponent))
+		if (!ActorComponent) continue;
+
+		// If it's a PrimitiveComponent, remove from spatial structures first
+		if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComponent))
 		{
-			// 1) Attempt to remove from the static octree
+			// 1) Remove from the static octree
 			StaticOctree.Remove(PrimComp);
 
-			// 2) Remove from dynamic primitives array
-			for (auto It = DynamicPrimitives.begin(); It != DynamicPrimitives.end(); ++It)
-			{
-				if (It->Get() == PrimComp)
-				{
-					DynamicPrimitives.erase(It);
-					break;
-				}
-			}
+			// 2) Remove from LevelPrimitiveComponents using remove-erase idiom
+			// This is safe because we compare pointers before deletion
+			LevelPrimitiveComponents.erase(
+				std::remove_if(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(),
+					[PrimComp](const TObjectPtr<UPrimitiveComponent>& Ptr) {
+						return Ptr.Get() == PrimComp;
+					}),
+				LevelPrimitiveComponents.end()
+			);
+
+			// 3) Remove from dynamic primitives array using remove-erase idiom
+			DynamicPrimitives.erase(
+				std::remove_if(DynamicPrimitives.begin(), DynamicPrimitives.end(),
+					[PrimComp](const TObjectPtr<UPrimitiveComponent>& Ptr) {
+						return Ptr.Get() == PrimComp;
+					}),
+				DynamicPrimitives.end()
+			);
+
+			UE_LOG("  - Removed component %s from all collections", PrimComp->GetName().ToString().data());
 		}
 	}
-	// Remove
+
+	UE_LOG("Level: After component removal, LevelPrimitiveComponents size: %zu", LevelPrimitiveComponents.size());
+
+	// Step 3: NOW it's safe to delete the actor (all references have been cleared)
 	delete InActor;
 
 	UE_LOG("Level: Actor Destroyed Successfully");
@@ -416,6 +416,12 @@ void ULevel::MarkActorForDeletion(AActor* InActor)
 	}
 
 	// 이미 삭제 대기 중인지 확인
+	if (InActor->IsPendingKill())
+	{
+		UE_LOG("Level: Actor Already Marked For Deletion (via PendingKill flag)");
+		return;
+	}
+
 	for (AActor* PendingActor : ActorsToDelete)
 	{
 		if (PendingActor == InActor)
@@ -425,15 +431,32 @@ void ULevel::MarkActorForDeletion(AActor* InActor)
 		}
 	}
 
+	// CRITICAL: Mark actor and all its components as pending kill IMMEDIATELY
+	// This prevents any further use of this object before actual deletion
+	InActor->MarkPendingKill();
+	TArray<UActorComponent*> AllComponents = InActor->GetAllComponents();
+	for (UActorComponent* Component : AllComponents)
+	{
+		if (Component)
+		{
+			Component->MarkPendingKill();
+		}
+	}
+
 	// 삭제 대기 리스트에 추가
 	ActorsToDelete.push_back(InActor);
-	UE_LOG("Level: 다음 Tick에 Actor를 제거하기 위한 마킹 처리: %s", InActor->GetName().ToString().data());
+	UE_LOG("Level: 다음 Tick에 Actor를 제거하기 위한 마킹 처리: %s (PendingKill set)", InActor->GetName().ToString().data());
 
 	// 선택 해제는 바로 처리
 	if (SelectedActor == InActor)
 	{
 		SelectedActor = nullptr;
 	}
+
+	// UIManager의 SelectedObject도 해제
+	// 삭제될 액터와 관련된 모든 선택을 무조건 해제 (안전을 위해)
+	UUIManager& UIManager = UUIManager::GetInstance();
+	UIManager.SetSelectedObject(nullptr);
 }
 
 void ULevel::ProcessPendingDeletions()
@@ -443,48 +466,84 @@ void ULevel::ProcessPendingDeletions()
 		return;
 	}
 
-	UE_LOG("Level: %zu개의 객체 지연 삭제 프로세스 처리 시작", ActorsToDelete.size());
+	UE_LOG("===============================================");
+	UE_LOG("Level::ProcessPendingDeletions: %zu개의 객체 지연 삭제 프로세스 처리 시작", ActorsToDelete.size());
 
 	// 원본 배열을 복사하여 사용 (DestroyActor가 원본을 수정할 가능성에 대비)
 	TArray<AActor*> ActorsToProcess = ActorsToDelete;
 	ActorsToDelete.clear();
 
+	UE_LOG("Level::ProcessPendingDeletions: ActorsToDelete 배열 클리어 완료");
+
 	for (AActor* ActorToDelete : ActorsToProcess)
 	{
 		if (ActorToDelete)
 		{
+			UE_LOG("Level::ProcessPendingDeletions: DestroyActor 호출 - %s (ptr: %p)",
+			       ActorToDelete->GetName().ToString().data(), ActorToDelete);
 			DestroyActor(ActorToDelete);
+		}
+		else
+		{
+			UE_LOG_WARNING("Level::ProcessPendingDeletions: nullptr 액터 발견, 스킵");
 		}
 	}
 
-	UE_LOG("Level: 모든 지연 삭제 프로세스 완료");
+	UE_LOG("Level::ProcessPendingDeletions: 모든 지연 삭제 프로세스 완료");
+	UE_LOG("===============================================");
 }
 
 void ULevel::ProcessActorForInit(AActor* Actor)
 {
 	if (!Actor) return;
-	
-	for (auto& Component : Actor->GetOwnedComponents())
+
+	UE_LOG("ProcessActorForInit: Processing actor %s", Actor->GetName().ToString().c_str());
+
+	// Use GetAllComponents() to include child components
+	TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+	UE_LOG("  -> Got %d total components (including children)", AllComponents.size());
+
+	// Force update all scene components' world transforms first
+	for (UActorComponent* Component : AllComponents)
+	{
+		if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
+		{
+			SceneComp->UpdateWorldTransform();
+		}
+	}
+
+	// Process all components for rendering system registration
+	for (UActorComponent* Component : AllComponents)
 	{
 		if (Component->GetComponentType() >= EComponentType::Primitive)
 		{
 			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
 			if (!PrimitiveComponent) continue;
 			
+			UE_LOG("  -> Processing primitive component: %s (Owner: %s)",
+				   PrimitiveComponent->GetName().ToString().c_str(),
+				   PrimitiveComponent->GetOwner() ? PrimitiveComponent->GetOwner()->GetName().ToString().c_str() : "None");
+			
 			// LevelPrimitiveComponents에 추가 (렌더링을 위해 필수!)
 			LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComponent));
 
 			// 빌보드 컴포넌트는 Octree에 삽입하지 않음
-			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
+			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard)
+			{
+				UE_LOG("    -> Skipping Billboard component for Octree");
 				continue;
+			}
 
 			FVector Min, Max;
 			PrimitiveComponent->GetWorldAABB(Min, Max);
 			FAABB WorldBounds(Min, Max);
 
 			StaticOctree.Insert(PrimitiveComponent, WorldBounds);
+			UE_LOG("    -> Added to Octree");
 		}
 	}
+
+	UE_LOG("ProcessActorForInit: Completed for %s", Actor->GetName().ToString().c_str());
 }
 
 void ULevel::MoveToDynamic(UPrimitiveComponent* InPrim)
@@ -505,68 +564,107 @@ void ULevel::DuplicateSubObjects()
 {
 	Super::DuplicateSubObjects();
 	
-	UE_LOG("ULevel::DuplicateSubObjects: Starting with %zu LevelActors and %zu Actors", LevelActors.size(), Actors.size());
+	UE_LOG("ULevel::DuplicateSubObjects: Starting with %zu LevelActors", LevelActors.size());
 	
-	// LevelActors 배열이 비어있지만 Actors에 데이터가 있는 경우 (PIE)
-	if (LevelActors.empty() && !Actors.empty())
+	// 통합된 LevelActors 배열의 모든 Actor 복제
+	for (auto& Actor : LevelActors)
 	{
-		UE_LOG("ULevel::DuplicateSubObjects: PIE mode detected - processing Actors array");
-		// Actors 배열의 모든 Actor 복제
-		for (auto& Actor : Actors)
+		if (Actor)
 		{
-			if (Actor)
-			{
-				AActor* DuplicatedActor = static_cast<AActor*>(Actor->Duplicate());
-				if (DuplicatedActor)
-				{
-					Actor = DuplicatedActor;
-				}
-			}
-		}
-	}
-	else
-	{
-		UE_LOG("ULevel::DuplicateSubObjects: Editor mode detected - processing LevelActors array");
-		// LevelActors 배열의 모든 Actor 복제
-		for (auto& Actor : LevelActors)
-		{
-			if (Actor)
-			{
-				Actor = static_cast<AActor*>(Actor->Duplicate());
-			}
-		}
-		
-		// Actors 배열을 LevelActors에서 동기화
-		Actors.clear();
-		for (const auto& Actor : LevelActors)
-		{
-			if (Actor)
-			{
-				Actors.push_back(Actor.Get());
-			}
+			Actor = static_cast<AActor*>(Actor->Duplicate());
 		}
 	}
 	
 	// LevelPrimitiveComponents 업데이트
 	LevelPrimitiveComponents.clear();
 	
-	// Actors 배열을 기준으로 LevelPrimitiveComponents 업데이트 (PIE 지원)
-	for (AActor* Actor : Actors)
+	// LevelActors 배열을 기준으로 LevelPrimitiveComponents 업데이트 (child component 포함)
+	for (const auto& Actor : LevelActors)
 	{
 		if (Actor)
 		{
-			for (const auto& Component : Actor->GetOwnedComponents())
+			// Use GetAllComponents() to include child components
+			TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+			UE_LOG("  DuplicateSubObjects: Actor %s has %d total components", 
+			       Actor->GetName().ToString().c_str(), AllComponents.size());
+			       
+			for (UActorComponent* Component : AllComponents)
 			{
 				if (auto PrimitiveComp = Cast<UPrimitiveComponent>(Component))
 				{
 					LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComp));
+					UE_LOG("    -> Added primitive: %s (Owner: %s)", 
+					       PrimitiveComp->GetName().ToString().c_str(),
+					       PrimitiveComp->GetOwner() ? PrimitiveComp->GetOwner()->GetName().ToString().c_str() : "None");
 				}
 			}
 		}
 	}
 	
-	UE_LOG("ULevel::DuplicateSubObjects: Completed with %zu LevelActors, %zu Actors, and %zu LevelPrimitiveComponents", 
-	       LevelActors.size(), Actors.size(), LevelPrimitiveComponents.size());
+	// DynamicPrimitives도 복제된 Actor들로부터 업데이트
+	DynamicPrimitives.clear();
+	UE_LOG("  DuplicateSubObjects: Rebuilding DynamicPrimitives from duplicated actors...");
+	
+	// 복제된 Actor들에서 DynamicPrimitives 재구성
+	for (const auto& Actor : LevelActors)
+	{
+		if (Actor)
+		{
+			// 모든 component (자식 포함)를 검사하여 DynamicPrimitives에 추가
+			TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+			UE_LOG("  PIE DuplicateSubObjects: Actor %s has %d components after duplication:", 
+			       Actor->GetName().ToString().c_str(), AllComponents.size());
+			       
+			// Debug: 각 컴포넌트의 타입과 상태 확인
+			for (int32 i = 0; i < AllComponents.size(); i++)
+			{
+				UActorComponent* Component = AllComponents[i];
+				if (Component)
+				{
+					bool bIsOwnedComponent = false;
+					for (const auto& OwnedComp : Actor->GetOwnedComponents())
+					{
+						if (OwnedComp.Get() == Component)
+						{
+							bIsOwnedComponent = true;
+							break;
+						}
+					}
+					
+					UE_LOG("    [%d] %s: %s (Type: %d, IsOwned: %s, Owner: %s)",
+					       i, bIsOwnedComponent ? "OWNED" : "CHILD",
+					       Component->GetName().ToString().c_str(),
+					       static_cast<int>(Component->GetComponentType()),
+					       bIsOwnedComponent ? "Yes" : "No",
+					       Component->GetOwner() ? Component->GetOwner()->GetName().ToString().c_str() : "None");
+				}
+			}
+			       
+			for (UActorComponent* Component : AllComponents)
+			{
+				if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Component))
+				{
+					// Billboard가 아닌 모든 primitive component를 DynamicPrimitives에 추가
+					if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::Billboard)
+					{
+						DynamicPrimitives.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComp));
+						UE_LOG("    -> Added to DynamicPrimitives: %s (Owner: %s, Type: %d, Visible: %s)", 
+						       PrimitiveComp->GetName().ToString().c_str(),
+						       PrimitiveComp->GetOwner() ? PrimitiveComp->GetOwner()->GetName().ToString().c_str() : "None",
+						       static_cast<int>(PrimitiveComp->GetPrimitiveType()),
+						       PrimitiveComp->IsVisible() ? "Yes" : "No");
+					}
+					else
+					{
+						UE_LOG("    -> Skipping Billboard component: %s", PrimitiveComp->GetName().ToString().c_str());
+					}
+				}
+			}
+		}
+	}
+	
+	UE_LOG("ULevel::DuplicateSubObjects: Completed with %zu LevelActors, %zu LevelPrimitiveComponents, and %zu DynamicPrimitives", 
+	       LevelActors.size(), LevelPrimitiveComponents.size(), DynamicPrimitives.size());
 }
 
 UObject* ULevel::Duplicate()
@@ -606,7 +704,7 @@ void ULevel::RegisterPrimitiveComponent(UPrimitiveComponent* NewPrimitive)
 		   NewPrimitive->GetOwner() ? NewPrimitive->GetOwner()->GetName().ToString().c_str() : "None");
 
 	// 빌보드 컴포넌트는 렌더링 목록에 직접 추가하지 않습니다.
-	if (NewPrimitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+	if (NewPrimitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 	{
 		UE_LOG("  -> Skipping Billboard component");
 		return;

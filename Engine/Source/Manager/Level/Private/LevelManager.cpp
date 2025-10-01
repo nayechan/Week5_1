@@ -160,7 +160,7 @@ bool ULevelManager::LoadLevel(const FString& InFilePath)
 bool ULevelManager::CreateNewLevel(const FString& InLevelName)
 {
 	// 새 레벨을 생성하고 등록합니다.
-	TObjectPtr<ULevel> NewLevel = TObjectPtr(new ULevel(InLevelName));
+	ULevel* NewLevel = new ULevel(InLevelName);
 	// 새 레벨로 전환합니다.
 	SwitchToLevel(NewLevel);
 	return true;
