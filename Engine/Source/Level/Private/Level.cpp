@@ -196,6 +196,11 @@ void ULevel::Update()
 	{
 		if (Actor)
 		{
+			// Tick 전에 월드 변환 업데이트
+			if (USceneComponent* RootComponent = Actor->GetRootComponent())
+			{
+				RootComponent->UpdateWorldTransform();
+			}
 			Actor->Tick(0.0f); // TODO: DeltaTime 매개변수 추가 필요
 		}
 	}

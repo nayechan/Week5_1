@@ -34,6 +34,10 @@ public:
 	const FVector& GetRelativeRotation() const;
 	const FVector& GetRelativeScale3D() const;
 
+	FVector GetWorldLocation() const;
+	FVector GetWorldRotation() const;
+	FVector GetWorldScale3D() const;
+
 	const FMatrix& GetWorldTransform() const;
 	const FMatrix& GetWorldTransformInverse() const;
 	void UpdateWorldTransform();

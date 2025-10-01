@@ -15,6 +15,7 @@ struct FQuaternion
 	static FQuaternion FromAxisAngle(const FVector& Axis, float AngleRad);
 
 	static FQuaternion FromEuler(const FVector& EulerDeg);
+	static FQuaternion FromMatrix(const FMatrix& M);
 	FVector ToEuler() const;
 
 	FQuaternion operator*(const FQuaternion& Q) const;
