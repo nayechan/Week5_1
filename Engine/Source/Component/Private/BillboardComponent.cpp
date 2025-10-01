@@ -3,6 +3,8 @@
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Texture/Public/Texture.h"
 #include "Editor/Public/Camera.h"
+#include "Render/UI/Widget/Public/BillboardComponentWidget.h"
+#include "Manager/Level/Public/LevelManager.h"
 
 IMPLEMENT_CLASS(UBillboardComponent, UPrimitiveComponent)
 
@@ -108,4 +110,15 @@ void UBillboardComponent::SetSprite(const FName& InFilePath)
 
 	Sprite = NewTex;
 	UE_LOG("UBillboardComponent::SetSprite: Assigned texture '%s' to billboard", InFilePath.ToString().c_str());
+
+	MarkWorldAABBDirty();
+	if (UEditor* Editor = ULevelManager::GetInstance().GetEditor())
+	{
+		Editor->MarkPrimitiveDirty(this);
+	}
+}
+
+TObjectPtr<UClass> UBillboardComponent::GetSpecificWidgetClass() const
+{
+	return UBillboardComponentWidget::StaticClass();
 }
