@@ -2,6 +2,7 @@
 #include "Editor/Public/EditorPrimitive.h"
 #include "Core/Public/Object.h"
 #include "Actor/Public/Actor.h"
+#include "Global/Quaternion.h"
 
 class UObjectPicker;
 class UCamera;
@@ -59,8 +60,8 @@ public:
 	*/
 	void SetLocation(const FVector& Location);
 	void SetGizmoDirection(EGizmoDirection Direction) { GizmoDirection = Direction; }
-	void SetActorRotation(const FVector& Rotation) { TargetActor->SetActorRotation(Rotation); }
-	void SetActorScale(const FVector& Scale) { TargetActor->SetActorScale3D(Scale); }
+	void SetActorRotation(const FVector& Rotation);
+	void SetActorScale(const FVector& Scale);
 
 	void SetWorld() { bIsWorld = true; }
 	void SetLocal() { bIsWorld = false; }
@@ -73,13 +74,15 @@ public:
 	const float GetRotateScale() const { return RotateCollisionConfig.Scale; }
 	const EGizmoDirection GetGizmoDirection() { return GizmoDirection; }
 	const FVector& GetGizmoLocation() { return Primitives[(int)GizmoMode].Location; }
-	const FVector& GetActorRotation() { return TargetActor->GetActorRotation(); }
-	const FVector& GetActorScale() { return TargetActor->GetActorScale3D(); }
+	FVector GetActorRotation();
+	FVector GetActorScale();
 	const FVector& GetDragStartMouseLocation() { return DragStartMouseLocation; }
 	const FVector& GetDragStartActorLocation() { return DragStartActorLocation; }
 	const FVector& GetDragStartActorRotation() { return DragStartActorRotation; }
+	const FQuaternion& GetDragStartActorRotationQuat() { return DragStartActorRotationQuat; }
 	const FVector& GetDragStartActorScale() { return DragStartActorScale; }
 	const EGizmoMode GetGizmoMode() { return GizmoMode; }
+	USceneComponent* GetTargetComponent();
 	const FVector GetGizmoAxis() {
 		FVector Axis[3]{ {1,0,0},{0,1,0},{0,0,1} }; return Axis[AxisIndex(GizmoDirection)];
 	}
@@ -124,7 +127,8 @@ private:
 	TArray<FVector4> GizmoColor;
 	FVector DragStartActorLocation;
 	FVector DragStartMouseLocation;
-	FVector DragStartActorRotation;
+	FVector DragStartActorRotation;  // Keep for backwards compatibility
+	FQuaternion DragStartActorRotationQuat;  // Use quaternion for rotation
 	FVector DragStartActorScale;
 
 	FGizmoTranslationCollisionConfig TranslateCollisionConfig;

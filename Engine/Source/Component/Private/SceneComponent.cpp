@@ -227,25 +227,15 @@ void USceneComponent::UpdateWorldTransform()
 			// CRITICAL: Ensure parent is updated first
 			ParentAttachment->UpdateWorldTransform();
 
-			// For child components: build local transform same as root (without UEToDx)
+			// For child components: Build local transform WITHOUT UEToDx conversion
+			// because parent's WorldTransform is already in DX coordinate space
 			FMatrix T = FMatrix::TranslationMatrix(RelativeLocation);
 			FMatrix R = FMatrix::RotationMatrix(FVector::GetDegreeToRadian(RelativeRotation));
 			FMatrix S = FMatrix::ScaleMatrix(RelativeScale3D);
 			FMatrix LocalTransform = S * R * T;
 
-			// Debug logging
-			FVector ParentWorldPos = ParentAttachment->GetWorldTransform().GetLocation();
-			FVector ChildRelativePos = RelativeLocation;
-			UE_LOG("Child Transform Debug: Parent World Pos=(%.2f, %.2f, %.2f), Child Relative=(%.2f, %.2f, %.2f), Child Scale=(%.2f, %.2f, %.2f)",
-				ParentWorldPos.X, ParentWorldPos.Y, ParentWorldPos.Z,
-				ChildRelativePos.X, ChildRelativePos.Y, ChildRelativePos.Z,
-				RelativeScale3D.X, RelativeScale3D.Y, RelativeScale3D.Z);
-
 			// Apply in parent's world space
 			WorldTransform = LocalTransform * ParentAttachment->GetWorldTransform();
-
-			FVector ChildWorldPos = WorldTransform.GetLocation();
-			UE_LOG("  -> Child World Pos=(%.2f, %.2f, %.2f)", ChildWorldPos.X, ChildWorldPos.Y, ChildWorldPos.Z);
 		}
 		else
 		{
