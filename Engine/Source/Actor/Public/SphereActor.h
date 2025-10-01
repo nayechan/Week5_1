@@ -3,6 +3,7 @@
 #include "Actor/Public/Actor.h"
 
 class USphereComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class ASphereActor : public AActor
@@ -12,6 +13,10 @@ class ASphereActor : public AActor
 
 public:
 	ASphereActor();
+
+	virtual UTextRenderComponent* GetUUIDTextComponent() const override { return UUIDTextComponent; }
+
 private:
 	USphereComponent* SphereComponent = nullptr;
+	UTextRenderComponent* UUIDTextComponent = nullptr;
 };

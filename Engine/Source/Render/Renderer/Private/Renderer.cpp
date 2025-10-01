@@ -26,7 +26,8 @@
 #include "Render/Culling/Public/CullingManager.h"
 #include "Render/Culling/Public/LODManager.h"
 #include "Render/Culling/Public/OcclusionCuller.h"
-#include <immintrin.h> 
+#include <immintrin.h>
+#include "Component/Public/TextRenderComponent.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
 
@@ -758,6 +759,20 @@ void URenderer::RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* I
 	// UEditor에서 가져오는 대신, 인자로 받은 카메라의 ViewProj 행렬을 사용
 	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
 	FontRenderer->RenderText(UUIDString.c_str(), RT, viewProjConstData);
+}
+
+void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCurrentCamera)
+{
+	if (!InCurrentCamera)
+	{
+		return;
+	}
+
+	FMatrix RT;
+	// TODO: FMatrix RT = InTextRenderComp->GetRTMatrix();
+
+	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
+	FontRenderer->RenderText(InTextRenderComp->GetText().c_str(), RT, viewProjConstData);
 }
 
 void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3D11RasterizerState* InRasterizerState)

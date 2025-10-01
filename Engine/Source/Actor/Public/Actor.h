@@ -21,6 +21,8 @@ namespace EEndPlayReason
 }
 
 class UBillBoardComponent;
+class UTextRenderComponent;
+
 /**
  * @brief Level에서 렌더링되는 UObject 클래스
  * UWorld로부터 업데이트 함수가 호출되면 component들을 순회하며 위치, 애니메이션, 상태 처리
@@ -68,6 +70,8 @@ public:
 	const TArray<TObjectPtr<UActorComponent>>& GetOwnedComponents() const { return OwnedComponents; }
 
 	void SetRootComponent(USceneComponent* InOwnedComponents) { RootComponent = InOwnedComponents; }
+
+	virtual UTextRenderComponent* GetUUIDTextComponent() const { return nullptr; }
 
 	const FVector& GetActorLocation() const;
 	const FVector& GetActorRotation() const;

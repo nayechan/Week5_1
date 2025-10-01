@@ -2,6 +2,7 @@
 #include "Actor/Public/Actor.h"
 
 class UCubeComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class ACubeActor : public AActor
@@ -12,6 +13,9 @@ class ACubeActor : public AActor
 public:
 	ACubeActor();
 
+	virtual UTextRenderComponent* GetUUIDTextComponent() const override { return UUIDTextComponent; }
+
 private:
 	UCubeComponent* CubeComponent = nullptr;
+	UTextRenderComponent* UUIDTextComponent = nullptr;
 };

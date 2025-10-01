@@ -15,6 +15,7 @@
 #include "Manager/Time/Public/TimeManager.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Component/Public/BillBoardComponent.h"
+#include "Component/Public/TextRenderComponent.h"
 #include "Level/Public/Level.h"
 #include "Global/Quaternion.h"
 #include "Utility/Public/ScopeCycleCounter.h"
@@ -200,6 +201,12 @@ void UEditor::RenderEditor(UCamera* InCamera)
 				break;	// Assume one billboard per actor
 			}
         }
+
+		// UUID Text Component
+		if (UTextRenderComponent* UUIDTextComponent = SelectedActor->GetUUIDTextComponent())
+		{
+			URenderer::GetInstance().RenderText(UUIDTextComponent, InCamera);
+		}
 	}
 }
 

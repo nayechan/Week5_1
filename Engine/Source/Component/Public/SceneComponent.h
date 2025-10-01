@@ -16,6 +16,7 @@ public:
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
 	void SetParentAttachment(USceneComponent* SceneComponent);
+	void AddChild(USceneComponent* NewChild);
 	void RemoveChild(USceneComponent* ChildDeleted);
 
 	void MarkAsDirty();

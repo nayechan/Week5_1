@@ -45,11 +45,13 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 		return;
 	}
 
-	//부모의 조상중에 내 자식이 있으면 순환참조 -> 스택오버플로우 일어남.
-	for (USceneComponent* Ancester = NewParent; NewParent; Ancester = NewParent->ParentAttachment)
+	// 순환 참조 방지: NewParent의 조상들 중에 this가 있는지 확인
+	for (USceneComponent* Ancestor = NewParent; Ancestor; Ancestor = Ancestor->ParentAttachment)
 	{
-		if (NewParent == this) //조상중에 내 자식이 있다면 조상중에 내가 있을 것임.
+		if (Ancestor == this)
+		{
 			return;
+		}
 	}
 
 	//부모가 될 자격이 있음, 이제 부모를 바꿈.
@@ -59,10 +61,21 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 		ParentAttachment->RemoveChild(this);
 	}
 
+	// 새로운 부모와 연결
 	ParentAttachment = NewParent;
+	if (ParentAttachment)
+	{
+		ParentAttachment->AddChild(this);
+	}
+
+	// TODO: 트랜스폼 설정
 
 	MarkAsDirty();
+}
 
+void USceneComponent::AddChild(USceneComponent* NewChild)
+{
+	Children.push_back(NewChild);
 }
 
 void USceneComponent::RemoveChild(USceneComponent* ChildDeleted)
