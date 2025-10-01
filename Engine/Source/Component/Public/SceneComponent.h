@@ -21,6 +21,7 @@ public:
 	void RemoveChild(USceneComponent* ChildDeleted);
 
 	const TArray<USceneComponent*>& GetAttachChildren() const { return Children; }
+	USceneComponent* GetAttachParent() const { return ParentAttachment; }
 
 	void MarkAsDirty();
 

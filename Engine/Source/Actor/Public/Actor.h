@@ -60,6 +60,9 @@ public:
 	
 	// Component Data Copying
 	void CopyComponentData(AActor* TargetActor);
+	
+	// Child Component Duplication
+	void DuplicateChildComponents(AActor* TargetActor);
 
 	// Tick 상태 관리
 	bool IsActorTickEnabled() const { return bActorTickEnabled; }

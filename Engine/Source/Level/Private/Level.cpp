@@ -439,38 +439,53 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 {
 	if (!Actor) return;
 
-	// Force update all scenen Components' world transforms first
-	for (auto& Component : Actor->GetOwnedComponents())
+	UE_LOG("ProcessActorForInit: Processing actor %s", Actor->GetName().ToString().c_str());
+
+	// Use GetAllComponents() to include child components
+	TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+	UE_LOG("  -> Got %d total components (including children)", AllComponents.size());
+
+	// Force update all scene components' world transforms first
+	for (UActorComponent* Component : AllComponents)
 	{
 		if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
 		{
-			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
-			{
-				SceneComp->UpdateWorldTransform();
-			}
+			SceneComp->UpdateWorldTransform();
 		}
 	}
-	for (auto& Component : Actor->GetOwnedComponents())
+
+	// Process all components for rendering system registration
+	for (UActorComponent* Component : AllComponents)
 	{
 		if (Component->GetComponentType() >= EComponentType::Primitive)
 		{
 			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
 			if (!PrimitiveComponent) continue;
 			
+			UE_LOG("  -> Processing primitive component: %s (Owner: %s)",
+				   PrimitiveComponent->GetName().ToString().c_str(),
+				   PrimitiveComponent->GetOwner() ? PrimitiveComponent->GetOwner()->GetName().ToString().c_str() : "None");
+			
 			// LevelPrimitiveComponents에 추가 (렌더링을 위해 필수!)
 			LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComponent));
 
 			// 빌보드 컴포넌트는 Octree에 삽입하지 않음
 			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
+			{
+				UE_LOG("    -> Skipping Billboard component for Octree");
 				continue;
+			}
 
 			FVector Min, Max;
 			PrimitiveComponent->GetWorldAABB(Min, Max);
 			FAABB WorldBounds(Min, Max);
 
 			StaticOctree.Insert(PrimitiveComponent, WorldBounds);
+			UE_LOG("    -> Added to Octree");
 		}
 	}
+
+	UE_LOG("ProcessActorForInit: Completed for %s", Actor->GetName().ToString().c_str());
 }
 
 void ULevel::MoveToDynamic(UPrimitiveComponent* InPrim)
@@ -505,23 +520,93 @@ void ULevel::DuplicateSubObjects()
 	// LevelPrimitiveComponents 업데이트
 	LevelPrimitiveComponents.clear();
 	
-	// LevelActors 배열을 기준으로 LevelPrimitiveComponents 업데이트
+	// LevelActors 배열을 기준으로 LevelPrimitiveComponents 업데이트 (child component 포함)
 	for (const auto& Actor : LevelActors)
 	{
 		if (Actor)
 		{
-			for (const auto& Component : Actor->GetOwnedComponents())
+			// Use GetAllComponents() to include child components
+			TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+			UE_LOG("  DuplicateSubObjects: Actor %s has %d total components", 
+			       Actor->GetName().ToString().c_str(), AllComponents.size());
+			       
+			for (UActorComponent* Component : AllComponents)
 			{
 				if (auto PrimitiveComp = Cast<UPrimitiveComponent>(Component))
 				{
 					LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComp));
+					UE_LOG("    -> Added primitive: %s (Owner: %s)", 
+					       PrimitiveComp->GetName().ToString().c_str(),
+					       PrimitiveComp->GetOwner() ? PrimitiveComp->GetOwner()->GetName().ToString().c_str() : "None");
 				}
 			}
 		}
 	}
 	
-	UE_LOG("ULevel::DuplicateSubObjects: Completed with %zu LevelActors and %zu LevelPrimitiveComponents", 
-	       LevelActors.size(), LevelPrimitiveComponents.size());
+	// DynamicPrimitives도 복제된 Actor들로부터 업데이트
+	DynamicPrimitives.clear();
+	UE_LOG("  DuplicateSubObjects: Rebuilding DynamicPrimitives from duplicated actors...");
+	
+	// 복제된 Actor들에서 DynamicPrimitives 재구성
+	for (const auto& Actor : LevelActors)
+	{
+		if (Actor)
+		{
+			// 모든 component (자식 포함)를 검사하여 DynamicPrimitives에 추가
+			TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+			UE_LOG("  PIE DuplicateSubObjects: Actor %s has %d components after duplication:", 
+			       Actor->GetName().ToString().c_str(), AllComponents.size());
+			       
+			// Debug: 각 컴포넌트의 타입과 상태 확인
+			for (int32 i = 0; i < AllComponents.size(); i++)
+			{
+				UActorComponent* Component = AllComponents[i];
+				if (Component)
+				{
+					bool bIsOwnedComponent = false;
+					for (const auto& OwnedComp : Actor->GetOwnedComponents())
+					{
+						if (OwnedComp.Get() == Component)
+						{
+							bIsOwnedComponent = true;
+							break;
+						}
+					}
+					
+					UE_LOG("    [%d] %s: %s (Type: %d, IsOwned: %s, Owner: %s)",
+					       i, bIsOwnedComponent ? "OWNED" : "CHILD",
+					       Component->GetName().ToString().c_str(),
+					       static_cast<int>(Component->GetComponentType()),
+					       bIsOwnedComponent ? "Yes" : "No",
+					       Component->GetOwner() ? Component->GetOwner()->GetName().ToString().c_str() : "None");
+				}
+			}
+			       
+			for (UActorComponent* Component : AllComponents)
+			{
+				if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Component))
+				{
+					// Billboard가 아닌 모든 primitive component를 DynamicPrimitives에 추가
+					if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::BillBoard)
+					{
+						DynamicPrimitives.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComp));
+						UE_LOG("    -> Added to DynamicPrimitives: %s (Owner: %s, Type: %d, Visible: %s)", 
+						       PrimitiveComp->GetName().ToString().c_str(),
+						       PrimitiveComp->GetOwner() ? PrimitiveComp->GetOwner()->GetName().ToString().c_str() : "None",
+						       static_cast<int>(PrimitiveComp->GetPrimitiveType()),
+						       PrimitiveComp->IsVisible() ? "Yes" : "No");
+					}
+					else
+					{
+						UE_LOG("    -> Skipping Billboard component: %s", PrimitiveComp->GetName().ToString().c_str());
+					}
+				}
+			}
+		}
+	}
+	
+	UE_LOG("ULevel::DuplicateSubObjects: Completed with %zu LevelActors, %zu LevelPrimitiveComponents, and %zu DynamicPrimitives", 
+	       LevelActors.size(), LevelPrimitiveComponents.size(), DynamicPrimitives.size());
 }
 
 UObject* ULevel::Duplicate()

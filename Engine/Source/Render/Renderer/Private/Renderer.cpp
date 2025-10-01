@@ -451,39 +451,13 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
-<<<<<<<<< Temporary merge branch 1
 		case EPrimitiveType::StaticMesh:
-        {
-            UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-            if (MeshComponent)
-            {
-				// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
-				int32 LodIndex = MeshComponent->GetCurrentLODIndex();
-=========
-			case EPrimitiveType::StaticMesh:
 			{
 				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
 				if (MeshComponent)
 				{
 					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
 					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
-
-				/*FVector Min, Max;
-				MeshComponent->GetWorldAABB(Min, Max);
-				FVector CompLocation = (Min + Max) * 0.5f;
-				FVector CamerLocation = InCurrentCamera->GetLocation();
-				float DistSq = (CamerLocation - CompLocation).LengthSquared();
-
-				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-				int32 LodIndex = 0;
-				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
-				{
-					if (DistSq >= LodDistanceSq[i])
-					{
-						LodIndex = i;
-						break;
-					}
-					MeshComponent->SetCurrentLODIndex(LodIndex);*/
 					if (LodIndex >= 0 && LodIndex < 3)
 					{
 						lodCounts[LodIndex]++;
@@ -492,7 +466,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
 				break;
 			}
->>>>>>>>> Temporary merge branch 2
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -507,6 +480,14 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	}
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
+	
+	// PIE 모드에서 동적 프리미티브 디버그 로그
+	if (bIsPIEWorld)
+	{
+		printf("PIE Mode: Rendering %d dynamic primitives\n", static_cast<int32>(DynamicPrimitives.size()));
+	}
+	
+	uint32 dynamicRenderedCount = 0;
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
 		if (!DynPrim)
@@ -515,6 +496,10 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		}
 		if (!DynPrim->IsVisible())
 		{
+			if (bIsPIEWorld)
+			{
+				printf("PIE Mode: Dynamic primitive is not visible: %s\n", DynPrim->GetName().ToString().c_str());
+			}
 			continue;
 		}
 		FVector WorldMin, WorldMax;
@@ -524,7 +509,20 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		{
 			continue;
 		}
+		
+		dynamicRenderedCount++;
+		if (bIsPIEWorld)
+		{
+			printf("PIE Mode: Rendering dynamic primitive: %s\n", DynPrim->GetName().ToString().c_str());
+		}
+		
 		RenderCallback(DynPrim, nullptr);
+	}
+	
+	// PIE 모드에서 최종 렌더링 통계 로그
+	if (bIsPIEWorld)
+	{
+		printf("PIE Mode: Successfully rendered %d dynamic primitives\n", dynamicRenderedCount);
 	}
 	
 }

@@ -315,7 +315,12 @@ void AActor::DuplicateSubObjects()
 		RootComponent->SetOwner(this);
 	}
 	
-	for (auto& Component : OwnedComponents)
+	// 모든 컴포넌트 (child component 포함) Owner 재설정
+	TArray<UActorComponent*> AllComponents = GetAllComponents();
+	UE_LOG("AActor::DuplicateSubObjects: Processing %d total components (including children) for %s", 
+	       AllComponents.size(), GetName().ToString().data());
+	       
+	for (UActorComponent* Component : AllComponents)
 	{
 		if (Component)
 		{
@@ -346,6 +351,9 @@ UObject* AActor::Duplicate()
 	
 	// 서브 오브젝트들을 깊은 복사로 복제 (먼저 RootComponent 생성)
 	NewActor->DuplicateSubObjects();
+	
+	// CRITICAL: Manually duplicate child components that weren't copied by DuplicateSubObjects
+	DuplicateChildComponents(NewActor);
 	
 	// 컴포넌트별 추가 복제 작업 (메시 정보 등)
 	CopyComponentData(NewActor);
@@ -434,4 +442,99 @@ void AActor::CopyComponentData(AActor* TargetActor)
 	}
 	
 	UE_LOG("AActor::CopyComponentData: Component data copying completed");
+}
+
+void AActor::DuplicateChildComponents(AActor* TargetActor)
+{
+	if (!TargetActor)
+	{
+		return;
+	}
+	
+	UE_LOG("AActor::DuplicateChildComponents: Starting child component duplication from %s to %s", 
+	       GetName().ToString().data(), TargetActor->GetName().ToString().data());
+	
+	// Get all components from source (original) actor
+	TArray<UActorComponent*> SourceAllComponents = GetAllComponents();
+	TArray<UActorComponent*> TargetAllComponents = TargetActor->GetAllComponents();
+	
+	UE_LOG("  Source has %d total components, Target has %d total components", 
+	       SourceAllComponents.size(), TargetAllComponents.size());
+	
+	// Find components that exist in source but not in target
+	for (UActorComponent* SourceComponent : SourceAllComponents)
+	{
+		if (!SourceComponent) continue;
+		
+		// Check if this component exists in target (by name and type)
+		bool bFoundInTarget = false;
+		for (UActorComponent* TargetComponent : TargetAllComponents)
+		{
+			if (TargetComponent && 
+			    TargetComponent->GetName() == SourceComponent->GetName() &&
+			    TargetComponent->GetClass() == SourceComponent->GetClass())
+			{
+				bFoundInTarget = true;
+				break;
+			}
+		}
+		
+		if (!bFoundInTarget)
+		{
+			UE_LOG("    Missing component in target: %s (Type: %d)", 
+			       SourceComponent->GetName().ToString().c_str(),
+			       static_cast<int>(SourceComponent->GetComponentType()));
+			
+			// Duplicate the missing component
+			UActorComponent* NewComponent = static_cast<UActorComponent*>(SourceComponent->Duplicate());
+			if (NewComponent)
+			{
+				NewComponent->SetOwner(TargetActor);
+				
+				// Register the component with the target actor
+				TargetActor->RegisterComponent(NewComponent);
+				
+				// If it's a SceneComponent, establish parent-child relationship
+				if (USceneComponent* SourceSceneComp = Cast<USceneComponent>(SourceComponent))
+				{
+					USceneComponent* NewSceneComp = Cast<USceneComponent>(NewComponent);
+					if (NewSceneComp)
+					{
+						// Find the equivalent parent in the target actor
+						USceneComponent* SourceParent = SourceSceneComp->GetAttachParent();
+						if (SourceParent)
+						{
+							// Find corresponding parent in target by name and type
+							for (UActorComponent* TargetComp : TargetActor->GetAllComponents())
+							{
+								if (USceneComponent* TargetSceneComp = Cast<USceneComponent>(TargetComp))
+								{
+									if (TargetSceneComp->GetName() == SourceParent->GetName() &&
+									    TargetSceneComp->GetClass() == SourceParent->GetClass())
+									{
+										// Attach the new child to the corresponding parent
+										NewSceneComp->SetParentAttachment(TargetSceneComp);
+										UE_LOG("      Attached child %s to parent %s", 
+										       NewSceneComp->GetName().ToString().c_str(),
+										       TargetSceneComp->GetName().ToString().c_str());
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				UE_LOG("      Successfully duplicated missing component: %s (UUID: %u)", 
+				       NewComponent->GetName().ToString().c_str(), NewComponent->GetUUID());
+			}
+			else
+			{
+				UE_LOG("      Failed to duplicate missing component: %s", 
+				       SourceComponent->GetName().ToString().c_str());
+			}
+		}
+	}
+	
+	UE_LOG("AActor::DuplicateChildComponents: Child component duplication completed");
 }
