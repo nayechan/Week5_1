@@ -52,6 +52,13 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason);
 	virtual void Tick(float DeltaTime);
 
+	// Object Duplication Override
+	virtual void DuplicateSubObjects() override;
+	virtual UObject* Duplicate() override;
+	
+	// Component Data Copying
+	void CopyComponentData(AActor* TargetActor);
+
 	// Tick 상태 관리
 	bool IsActorTickEnabled() const { return bActorTickEnabled; }
 	void SetActorTickEnabled(bool bEnabled) { bActorTickEnabled = bEnabled; }

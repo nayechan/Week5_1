@@ -45,12 +45,16 @@ void ULevelManager::Shutdown()
 	}
 }
 
+UWorld* ULevelManager::GetCurrentWorld() const
+{
+	return UWorldManager::GetInstance().GetCurrentWorld().Get();
+}
+
 void ULevelManager::Update() const
 {
-	if (CurrentLevel)
-	{
-		CurrentLevel->Update();
-	}
+	// Level Update는 WorldManager가 담당하므로 여기서는 제거
+	// CurrentLevel->Update(); // 이 호출이 중복 ticking의 원인이었음
+	
 	if (Editor)
 	{
 		Editor->Update();
