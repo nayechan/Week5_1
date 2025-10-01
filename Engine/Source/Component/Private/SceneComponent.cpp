@@ -346,3 +346,60 @@ void USceneComponent::UpdateWorldTransform()
 		Child->UpdateWorldTransform();
 	}
 }
+
+void USceneComponent::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+	
+	// SceneComponent는 자식들을 깊게 복제하지 않음
+	// 자식들은 별도로 Actor level에서 복제됨
+	UE_LOG("USceneComponent::DuplicateSubObjects: %s - maintaining %d children references", 
+	       GetName().ToString().c_str(), Children.size());
+}
+
+UObject* USceneComponent::Duplicate()
+{
+	UE_LOG("USceneComponent::Duplicate: Starting duplication of %s (UUID: %u)", 
+	       GetName().ToString().data(), GetUUID());
+	
+	// NewObject를 사용하여 새로운 SceneComponent 생성
+	USceneComponent* NewComponent = NewObject<USceneComponent>(nullptr, GetClass());
+	if (!NewComponent)
+	{
+		UE_LOG("USceneComponent::Duplicate: Failed to create new component!");
+		return nullptr;
+	}
+	
+	UE_LOG("USceneComponent::Duplicate: New component created with UUID: %u", NewComponent->GetUUID());
+	
+	// SceneComponent 속성들 복사
+	NewComponent->RelativeLocation = RelativeLocation;
+	NewComponent->RelativeRotation = RelativeRotation;
+	NewComponent->RelativeScale3D = RelativeScale3D;
+	NewComponent->bIsUniformScale = bIsUniformScale;
+	
+	// UActorComponent 속성들 복사
+	NewComponent->ComponentType = ComponentType;
+	NewComponent->bComponentTickEnabled = bComponentTickEnabled;
+	
+	// Transform 상태 초기화
+	NewComponent->bIsTransformDirty = true;
+	NewComponent->bIsTransformDirtyInverse = true;
+	
+	// IMPORTANT: 자식들은 복제하지 않음! Actor level에서 처리됨
+	// ParentAttachment도 복제하지 않음! Actor level에서 재설정됨
+	NewComponent->ParentAttachment = nullptr;
+	NewComponent->Children.clear();
+	
+	// 서브 오브젝트 복제
+	NewComponent->DuplicateSubObjects();
+	
+	// Owner는 복제 후에 다시 설정됨
+	NewComponent->SetOwner(nullptr);
+	
+	UE_LOG("USceneComponent::Duplicate: Duplication completed for %s (UUID: %u) -> %s (UUID: %u)", 
+	       GetName().ToString().data(), GetUUID(), 
+	       NewComponent->GetName().ToString().data(), NewComponent->GetUUID());
+	
+	return NewComponent;
+}

@@ -97,12 +97,44 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
 			{
 				if (EditorActor)
 				{
-					UE_LOG("DuplicateWorldForPIE: Duplicating actor: %s", EditorActor->GetName().ToString().data());
+					// 복제 전 원본 액터의 컴포넌트 상태 확인
+					TArray<UActorComponent*> OriginalComponents = EditorActor->GetAllComponents();
+					UE_LOG("DuplicateWorldForPIE: Duplicating actor: %s (has %d total components)", 
+					       EditorActor->GetName().ToString().data(), OriginalComponents.size());
+					       
+					// 자식 컴포넌트들 리스트 출력
+					for (UActorComponent* OrigComp : OriginalComponents)
+					{
+						if (OrigComp)
+						{
+							UE_LOG("  - Original Component: %s (Type: %d, Owner: %s)", 
+							       OrigComp->GetName().ToString().c_str(),
+							       static_cast<int>(OrigComp->GetComponentType()),
+							       OrigComp->GetOwner() ? OrigComp->GetOwner()->GetName().ToString().c_str() : "None");
+						}
+					}
+					
 					// 액터 복제 (얘은 복사 + 서브오브젝트 깊은 복사)
 					AActor* PIEActor = Cast<AActor>(EditorActor->Duplicate());
 					if (PIEActor)
 					{
-						UE_LOG("DuplicateWorldForPIE: Actor duplicated successfully: %s", PIEActor->GetName().ToString().data());
+						// 복제 후 PIE 액터의 컴포넌트 상태 확인
+						TArray<UActorComponent*> PIEComponents = PIEActor->GetAllComponents();
+						UE_LOG("DuplicateWorldForPIE: Actor duplicated successfully: %s (has %d total components)", 
+						       PIEActor->GetName().ToString().data(), PIEComponents.size());
+						       
+						// 복제된 컴포넌트들 리스트 출력
+						for (UActorComponent* PIEComp : PIEComponents)
+						{
+							if (PIEComp)
+							{
+								UE_LOG("  - PIE Component: %s (Type: %d, Owner: %s)", 
+								       PIEComp->GetName().ToString().c_str(),
+								       static_cast<int>(PIEComp->GetComponentType()),
+								       PIEComp->GetOwner() ? PIEComp->GetOwner()->GetName().ToString().c_str() : "None");
+							}
+						}
+						
 						// 통합된 PIE 배열에 추가
 						PIEActorsArray.push_back(TObjectPtr<AActor>(PIEActor));
 						duplicatedCount++;

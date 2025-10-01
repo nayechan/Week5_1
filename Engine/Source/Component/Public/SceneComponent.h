@@ -44,6 +44,10 @@ public:
 	const FMatrix& GetWorldTransformInverse() const;
 	void UpdateWorldTransform();
 
+	// Duplication support
+	void DuplicateSubObjects() override;
+	UObject* Duplicate() override;
+
 private:
 	mutable bool bIsTransformDirty = true;
 	mutable bool bIsTransformDirtyInverse = true;
