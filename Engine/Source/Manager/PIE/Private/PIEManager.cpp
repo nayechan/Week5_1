@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Manager/PIE/Public/PIEManager.h"
-#include "Manager/Level/Public/LevelManager.h"
-#include "Level/Public/Level.h"
+#include "Manager/World/Public/WorldManager.h"
+#include "Core/Public/World.h"
 #include "Editor/Public/ViewportClient.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(UPIEManager)
@@ -18,7 +18,7 @@ void UPIEManager::StartPIE(FViewportClient* InPIEViewport)
 		return;
 	}
 
-	if (PIELevel)
+	if (PIEWorld)
 	{
 		UE_LOG("PIEManager: PIE already running");
 		return;
@@ -26,16 +26,24 @@ void UPIEManager::StartPIE(FViewportClient* InPIEViewport)
 
 	UE_LOG("PIEManager: Starting PIE");
 
-	// LevelManager로부터 Level 복제
-	PIELevel = ULevelManager::GetInstance().CloneLevelForPIE();
-
-	if (PIELevel)
+	// WorldManager로부터 Editor World 가져오기
+	UWorld* EditorWorld = UWorldManager::GetInstance().GetCurrentWorld().Get();
+	if (!EditorWorld)
 	{
-		PIELevel->Init();
+		UE_LOG("PIEManager: No Editor World found");
+		return;
+	}
+
+	// Editor World를 복제하여 PIE World 생성
+	PIEWorld = UWorld::DuplicateWorldForPIE(EditorWorld);
+
+	if (PIEWorld)
+	{
+		PIEWorld->InitializeActorsForPlay();
 		PIEViewport = InPIEViewport;
 
-		// Viewport에 PIE Level 할당
-		PIEViewport->RenderTargetLevel = PIELevel.get();
+		// Viewport에 PIE World 할당
+		PIEViewport->RenderTargetWorld = PIEWorld.Get();
 
 		UE_LOG("PIEManager: PIE Started Successfully");
 	}
@@ -47,7 +55,7 @@ void UPIEManager::StartPIE(FViewportClient* InPIEViewport)
 
 void UPIEManager::StopPIE()
 {
-	if (!PIELevel)
+	if (!PIEWorld)
 	{
 		UE_LOG("PIEManager: PIE not running");
 		return;
@@ -55,15 +63,17 @@ void UPIEManager::StopPIE()
 
 	UE_LOG("PIEManager: Stopping PIE");
 
-	// Viewport의 RenderTargetLevel 초기화
+	// Viewport의 RenderTargetWorld 초기화
 	if (PIEViewport)
 	{
-		PIEViewport->RenderTargetLevel = nullptr;
+		PIEViewport->RenderTargetWorld = nullptr;
 		PIEViewport = nullptr;
 	}
 
-	// PIE Level 삭제 (자동)
-	PIELevel.reset();
+	// PIE World 정리 및 삭제
+	PIEWorld->CleanupWorld();
+	delete PIEWorld.Get();
+	PIEWorld = nullptr;
 	bIsPaused = false;
 
 	UE_LOG("PIEManager: PIE Stopped");
@@ -71,7 +81,7 @@ void UPIEManager::StopPIE()
 
 void UPIEManager::TogglePausePIE()
 {
-	if (!PIELevel)
+	if (!PIEWorld)
 	{
 		UE_LOG("PIEManager: PIE not running, cannot pause");
 		return;
@@ -81,19 +91,19 @@ void UPIEManager::TogglePausePIE()
 
 	if (bIsPaused)
 	{
-		// 일시정지: Viewport에서 PIE Level 제거 (Editor Level 표시)
+		// 일시정지: Viewport에서 PIE World 제거 (Editor World 표시)
 		if (PIEViewport)
 		{
-			PIEViewport->RenderTargetLevel = nullptr;
+			PIEViewport->RenderTargetWorld = nullptr;
 		}
 		UE_LOG("PIEManager: PIE Paused");
 	}
 	else
 	{
-		// 재개: Viewport에 PIE Level 다시 할당
+		// 재개: Viewport에 PIE World 다시 할당
 		if (PIEViewport)
 		{
-			PIEViewport->RenderTargetLevel = PIELevel.get();
+			PIEViewport->RenderTargetWorld = PIEWorld.Get();
 		}
 		UE_LOG("PIEManager: PIE Resumed");
 	}

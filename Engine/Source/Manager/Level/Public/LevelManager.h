@@ -26,9 +26,6 @@ public:
 	static path GetLevelDirectory();
 	static path GenerateLevelFilePath(const FString& InLevelName);
 
-	// PIE System (TODO: Move to WorldManager when World structure is ready)
-	TUniquePtr<ULevel> CloneLevelForPIE();
-
 	TObjectPtr<UEditor> GetEditor() const { return Editor; }
 
 private:

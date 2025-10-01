@@ -12,6 +12,8 @@
 #include "Editor/Public/Camera.h"
 #include "Level/Public/Level.h"
 #include "Manager/Level/Public/LevelManager.h"
+#include "Manager/World/Public/WorldManager.h"
+#include "Core/Public/World.h"
 #include "Manager/UI/Public/UIManager.h"
 #include "Manager/Config/Public/ConfigManager.h"
 #include "Render/UI/Overlay/Public/StatOverlay.h"
@@ -305,9 +307,8 @@ void URenderer::Update()
 		RenderLevel(ViewportClient);
 
 		// 5. 에디터를 렌더링합니다.
-		// TODO: World 시스템 구현 시 World->ShouldRenderEditor()로 대체
-		// 현재는 PIE Viewport인 경우 Editor 렌더링 스킵 (임시 구현)
-		bool bIsPIEViewport = ViewportClient.RenderTargetLevel != nullptr;
+		// PIE World인 경우 Editor 렌더링 스킵
+		bool bIsPIEViewport = ViewportClient.RenderTargetWorld && ViewportClient.RenderTargetWorld->IsPIEWorld();
 		if (!bIsPIEViewport)
 		{
 			ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
@@ -352,12 +353,17 @@ void URenderer::RenderBegin() const
  */
 void URenderer::RenderLevel(FViewportClient& InViewport)
 {
-	// Viewport가 렌더링할 Level 결정: RenderTargetLevel이 있으면 사용, 없으면 CurrentLevel 사용
-	ULevel* TargetLevel = InViewport.RenderTargetLevel
-		? InViewport.RenderTargetLevel
-		: ULevelManager::GetInstance().GetCurrentLevel();
+	// Viewport가 렌더링할 World 결정: RenderTargetWorld가 있으면 사용, 없으면 Editor World 사용
+	UWorld* TargetWorld = InViewport.RenderTargetWorld
+		? InViewport.RenderTargetWorld
+		: UWorldManager::GetInstance().GetCurrentWorld().Get();
 
-	// Level 없으면 Early Return
+	// World 없으면 Early Return
+	if (!TargetWorld)
+		return;
+
+	// World로부터 Level 가져오기
+	ULevel* TargetLevel = TargetWorld->GetLevel();
 	if (!TargetLevel)
 		return;
 

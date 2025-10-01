@@ -1,12 +1,12 @@
 #pragma once
 #include "Core/Public/Object.h"
+#include "Core/Public/ObjectPtr.h"
 
-class ULevel;
+class UWorld;
 class FViewportClient;
 
 /**
  * @brief PIE (Play In Editor) 세션을 관리하는 Manager
- * TODO: World 구조로 변경 시 World 기반으로 리팩토링
  */
 UCLASS()
 class UPIEManager : public UObject
@@ -34,7 +34,7 @@ public:
 	/**
 	 * @brief PIE가 실행 중인지 확인
 	 */
-	bool IsPIERunning() const { return PIELevel != nullptr; }
+	bool IsPIERunning() const { return PIEWorld != nullptr; }
 
 	/**
 	 * @brief PIE가 일시정지 상태인지 확인
@@ -42,9 +42,9 @@ public:
 	bool IsPIEPaused() const { return bIsPaused; }
 
 	/**
-	 * @brief PIE Level 가져오기
+	 * @brief PIE World 가져오기
 	 */
-	ULevel* GetPIELevel() const { return PIELevel.get(); }
+	UWorld* GetPIEWorld() const { return PIEWorld.Get(); }
 
 	/**
 	 * @brief PIE가 실행 중인 Viewport 가져오기
@@ -52,7 +52,7 @@ public:
 	FViewportClient* GetPIEViewport() const { return PIEViewport; }
 
 private:
-	TUniquePtr<ULevel> PIELevel = nullptr;          // PIE Level (PIEManager가 소유)
+	TObjectPtr<UWorld> PIEWorld = nullptr;          // PIE World (PIEManager가 소유)
 	FViewportClient* PIEViewport = nullptr;         // PIE가 실행 중인 Viewport
 	bool bIsPaused = false;                         // PIE 일시정지 상태
 };

@@ -87,8 +87,7 @@ public:
 	bool bIsVisible = true;  // 뷰포트 표시 여부 (기본값: 표시)
 	EViewportCameraType CameraType = EViewportCameraType::Perspective;
 
-	// PIE System: 이 뷰포트가 렌더링할 Level (nullptr이면 CurrentLevel 사용)
-	// TODO: World 구조로 변경 시 UWorld*로 교체
-	ULevel* RenderTargetLevel = nullptr;
+	// PIE System: 이 뷰포트가 렌더링할 World (nullptr이면 Editor World 사용)
+	class UWorld* RenderTargetWorld = nullptr;
 };
 

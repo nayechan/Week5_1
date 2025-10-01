@@ -174,30 +174,6 @@ path ULevelManager::GenerateLevelFilePath(const FString& InLevelName)
 	return LevelDirectory / FileName;
 }
 
-TUniquePtr<ULevel> ULevelManager::CloneLevelForPIE()
-{
-	// TODO: Replace with proper World cloning when World structure is ready
-	// Currently using mock implementation: reload level from last used file
-
-	FString LastLevelPath = UConfigManager::GetInstance().GetLastSavedLevelPath();
-	if (LastLevelPath.empty())
-	{
-		UE_LOG("LevelManager: No level path available for PIE clone");
-		return nullptr;
-	}
-
-	UE_LOG("LevelManager: Cloning Level For PIE (Mock: Reload From File)");
-
-	ULevel* ClonedLevel = CreateLevel(LastLevelPath);
-	if (!ClonedLevel)
-	{
-		UE_LOG("LevelManager: Failed To Clone Level For PIE");
-		return nullptr;
-	}
-
-	UE_LOG("LevelManager: PIE Level Clone Created Successfully");
-	return TUniquePtr<ULevel>(ClonedLevel);
-}
 
 // =================================================================
 // Private Helper Functions

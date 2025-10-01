@@ -19,6 +19,7 @@
 #include "Global/Quaternion.h"
 #include "Utility/Public/ScopeCycleCounter.h"
 #include "Utility/Public/SceneBVH.h"
+#include "Source/Core/Public/World.h"
 
 UEditor::UEditor()
 {
@@ -98,13 +99,20 @@ void UEditor::Update()
 	}
 
 	// 2. 활성 뷰포트의 카메라의 제어만 업데이트합니다.
-	if (UCamera* ActiveCamera = Viewport->GetActiveCamera())
+	// PIE 실행 중인 뷰포트는 Editor 카메라 제어를 비활성화합니다.
+	FViewportClient* ActiveViewportClient = Viewport->GetActiveViewportClient();
+	bool bIsPIEViewport = ActiveViewportClient && ActiveViewportClient->RenderTargetWorld && ActiveViewportClient->RenderTargetWorld->IsPIEWorld();
+
+	if (!bIsPIEViewport)
 	{
-		// ✨ 만약 이동량이 있고, 직교 카메라라면 ViewportClient에 알립니다.
-		const FVector MovementDelta = ActiveCamera->UpdateInput();
-		if (MovementDelta.LengthSquared() > 0.f && ActiveCamera->GetCameraType() == ECameraType::ECT_Orthographic)
+		if (UCamera* ActiveCamera = Viewport->GetActiveCamera())
 		{
-			Viewport->UpdateOrthoFocusPointByDelta(MovementDelta);
+			// ✨ 만약 이동량이 있고, 직교 카메라라면 ViewportClient에 알립니다.
+			const FVector MovementDelta = ActiveCamera->UpdateInput();
+			if (MovementDelta.LengthSquared() > 0.f && ActiveCamera->GetCameraType() == ECameraType::ECT_Orthographic)
+			{
+				Viewport->UpdateOrthoFocusPointByDelta(MovementDelta);
+			}
 		}
 	}
 
