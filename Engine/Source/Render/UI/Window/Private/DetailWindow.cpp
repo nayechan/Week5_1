@@ -52,15 +52,34 @@ void UDetailWindow::OnSelectedActorChanged(AActor* InActor)
 
 	if (InActor)
 	{
+		// Track which widget classes have been added to avoid duplicates
+		TArray<TObjectPtr<UClass>> AddedWidgetClasses;
+
 		for (const auto& Component : InActor->GetOwnedComponents())
 		{
 			TObjectPtr<UClass> WidgetClass = Component->GetSpecificWidgetClass();
 			if (WidgetClass)
 			{
-				UWidget* NewWidget = NewObject<UWidget>(nullptr, WidgetClass);
-				if (NewWidget)
+				// Check if this widget class has already been added
+				bool bAlreadyAdded = false;
+				for (const auto& ExistingClass : AddedWidgetClasses)
 				{
-					AddWidget(NewWidget);
+					if (ExistingClass == WidgetClass)
+					{
+						bAlreadyAdded = true;
+						break;
+					}
+				}
+
+				// Only add if not already added
+				if (!bAlreadyAdded)
+				{
+					UWidget* NewWidget = NewObject<UWidget>(nullptr, WidgetClass);
+					if (NewWidget)
+					{
+						AddWidget(NewWidget);
+						AddedWidgetClasses.push_back(WidgetClass);
+					}
 				}
 			}
 		}

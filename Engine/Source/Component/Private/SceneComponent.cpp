@@ -317,25 +317,9 @@ void USceneComponent::UpdateWorldTransform()
 	// IMPORTANT: Update inverse transform whenever WorldTransform changes
 	if (bIsTransformDirtyInverse)
 	{
-		// Calculate inverse using the same transform components that created WorldTransform
-		FVector WorldLocation, WorldRotation, WorldScale;
-		if (ParentAttachment)
-		{
-			// For child components, we need to compute world-space transform components
-			// This is a simplified approach - in practice, you might want more sophisticated decomposition
-			WorldLocation = RelativeLocation;
-			WorldRotation = RelativeRotation;
-			WorldScale = RelativeScale3D;
-		}
-		else
-		{
-			// For root components, relative = world
-			WorldLocation = RelativeLocation;
-			WorldRotation = RelativeRotation;
-			WorldScale = RelativeScale3D;
-		}
-		
-		WorldTransformInverse = FMatrix::GetModelMatrixInverse(WorldLocation, WorldRotation, WorldScale);
+		// Directly invert the WorldTransform matrix
+		// This is mathematically correct for both root and child components
+		WorldTransformInverse = WorldTransform.Inverse();
 		bIsTransformDirtyInverse = false;
 	}
 
