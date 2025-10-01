@@ -60,6 +60,9 @@ public:
 	
 	// Component Data Copying
 	void CopyComponentData(AActor* TargetActor);
+	
+	// Child Component Duplication
+	void DuplicateChildComponents(AActor* TargetActor);
 
 	// Tick 상태 관리
 	bool IsActorTickEnabled() const { return bActorTickEnabled; }
@@ -69,6 +72,12 @@ public:
 	USceneComponent* GetRootComponent() const { return RootComponent.Get(); }
 	const TArray<TObjectPtr<UActorComponent>>& GetOwnedComponents() const { return OwnedComponents; }
 
+	/**
+	 * @brief Get all components including nested children (uses Outer chain)
+	 * This includes components attached to other components in the hierarchy
+	 */
+	TArray<UActorComponent*> GetAllComponents() const;
+
 	void SetRootComponent(USceneComponent* InOwnedComponents) { RootComponent = InOwnedComponents; }
 
 	virtual UTextRenderComponent* GetUUIDTextComponent() const { return nullptr; }
@@ -76,6 +85,20 @@ public:
 	const FVector& GetActorLocation() const;
 	const FVector& GetActorRotation() const;
 	const FVector& GetActorScale3D() const;
+
+	UActorComponent* AddComponentByClass(UClass* ComponentClass, const FName& ComponentName);
+
+	/**
+	 * @brief Component를 Actor의 소유 목록에 등록
+	 * SceneComponent 자식들도 이 메서드를 통해 등록
+	 */
+	void RegisterComponent(UActorComponent* Component);
+
+	/**
+	 * @brief Component를 Actor의 소유 목록에서 제거
+	 * 삭제 전에 반드시 호출해야 함
+	 */
+	void UnregisterComponent(UActorComponent* Component);
 
 	template<class T>
 	T* CreateDefaultSubobject(const FName& InName)

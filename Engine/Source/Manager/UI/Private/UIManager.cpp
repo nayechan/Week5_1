@@ -6,6 +6,8 @@
 #include "Render/UI/Widget/Public/Widget.h"
 #include "Render/UI/Window/Public/MainMenuWindow.h"
 #include "Render/UI/Widget/Public/MainBarWidget.h"
+#include "Actor/Public/Actor.h"
+#include "Component/Public/SceneComponent.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(UUIManager)
 
@@ -34,7 +36,6 @@ void UUIManager::Initialize()
 		return;
 	}
 
-	UE_LOG("UIManager: UI System 초기화 진행 중...");
 
 	UIWindows.clear();
 	FocusedWindow = nullptr;
@@ -42,7 +43,6 @@ void UUIManager::Initialize()
 
 	bIsInitialized = true;
 
-	UE_LOG("UIManager: UI System 초기화 성공");
 }
 
 /**
@@ -557,8 +557,32 @@ float UUIManager::GetMainMenuBarHeight() const
 
 void UUIManager::OnSelectedActorChanged(AActor* InSelectedActor) const
 {
+	// When an actor is selected in viewport, automatically select its root component
+	if (InSelectedActor && InSelectedActor->GetRootComponent())
+	{
+		// Note: We need to cast away const here since SetSelectedObject modifies state
+		const_cast<UUIManager*>(this)->SetSelectedObject(TObjectPtr<UObject>(InSelectedActor->GetRootComponent()));
+	}
+	else
+	{
+		const_cast<UUIManager*>(this)->SetSelectedObject(nullptr);
+	}
+
 	for (UUIWindow* UIWindow : UIWindows)
 	{
 		UIWindow->OnSelectedActorChanged(InSelectedActor);
 	}
+}
+
+void UUIManager::SetSelectedObject(TObjectPtr<UObject> InObject)
+{
+	if (SelectedObject != InObject)
+	{
+		SelectedObject = InObject;
+	}
+}
+
+TObjectPtr<UObject> UUIManager::GetSelectedObject() const
+{
+	return SelectedObject;
 }

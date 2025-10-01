@@ -115,9 +115,6 @@ bool OpenObjFromFileDialog()
 		{
 			StaticMeshComponent->SetStaticMesh(MeshInList->GetAssetPathFileName());
 
-			// 새로 생성된 액터를 Dynamic 목록에 추가
-			CurrentLevel->AddActorToDynamic(NewActor);
-
 			return true;
 		}
 	}

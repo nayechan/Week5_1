@@ -57,9 +57,12 @@ public:
 	virtual void DuplicateSubObjects() override;
 	virtual UObject* Duplicate() override;
 
-	// PIE/World에서 요구하는 인터페이스
-	const TArray<AActor*>& GetActors() const { return Actors; }
-	TArray<AActor*>& GetActors() { return Actors; }
+	// 통합된 Actor 관리 인터페이스
+	const TArray<TObjectPtr<AActor>>& GetActors() const { return LevelActors; }
+	TArray<TObjectPtr<AActor>>& GetActors() { return LevelActors; }
+
+	// PIE 호환을 위한 원시 포인터 배열 반환 (동적으로 생성)
+	TArray<AActor*> GetActorsPtrs() const;
 
 	// 기존 인터페이스 유지 (호환성)
 	const TArray<TObjectPtr<AActor>>& GetLevelActors() const { return LevelActors; }
@@ -84,6 +87,8 @@ public:
 	uint64 GetShowFlags() const { return ShowFlags; }
 	void SetShowFlags(uint64 InShowFlags) { ShowFlags = InShowFlags; }
 
+	void RegisterPrimitiveComponent(UPrimitiveComponent* NewPrimitive);
+
 	// Spatial Index
 	FOctree& GetStaticOctree() { return StaticOctree; }
 	const FOctree& GetStaticOctree() const { return StaticOctree; }
@@ -91,10 +96,7 @@ public:
 	void MoveToDynamic(UPrimitiveComponent* InPrim);
 
 private:
-	// PIE/World에서 사용하는 Actors 배열
-	TArray<AActor*> Actors;
-
-	// 기존 인터페이스 유지
+	// 통합된 Actor 관리 배열
 	TArray<TObjectPtr<AActor>> LevelActors;
 	TArray<TObjectPtr<UPrimitiveComponent>> LevelPrimitiveComponents;	// 액터의 하위 컴포넌트는 액터에서 관리&해제됨
 

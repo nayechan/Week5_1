@@ -12,12 +12,16 @@ class USceneComponent : public UActorComponent
 
 public:
 	USceneComponent();
+	virtual ~USceneComponent();
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
 	void SetParentAttachment(USceneComponent* SceneComponent);
 	void AddChild(USceneComponent* NewChild);
 	void RemoveChild(USceneComponent* ChildDeleted);
+
+	const TArray<USceneComponent*>& GetAttachChildren() const { return Children; }
+	USceneComponent* GetAttachParent() const { return ParentAttachment; }
 
 	void MarkAsDirty();
 
@@ -32,14 +36,23 @@ public:
 	const FVector& GetRelativeRotation() const;
 	const FVector& GetRelativeScale3D() const;
 
-	const FMatrix& GetWorldTransformMatrix() const;
-	const FMatrix& GetWorldTransformMatrixInverse() const;
+	FVector GetWorldLocation() const;
+	FVector GetWorldRotation() const;
+	FVector GetWorldScale3D() const;
+
+	const FMatrix& GetWorldTransform() const;
+	const FMatrix& GetWorldTransformInverse() const;
+	void UpdateWorldTransform();
+
+	// Duplication support
+	void DuplicateSubObjects() override;
+	UObject* Duplicate() override;
 
 private:
 	mutable bool bIsTransformDirty = true;
 	mutable bool bIsTransformDirtyInverse = true;
-	mutable FMatrix WorldTransformMatrix;
-	mutable FMatrix WorldTransformMatrixInverse;
+	mutable FMatrix WorldTransform;
+	mutable FMatrix WorldTransformInverse;
 
 	USceneComponent* ParentAttachment = nullptr;
 	TArray<USceneComponent*> Children;

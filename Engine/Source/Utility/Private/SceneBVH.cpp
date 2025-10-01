@@ -59,6 +59,19 @@ void FSceneBVH::Build(const TArray<UPrimitiveComponent*>& InPrimitives)
 	for (size_t I = 0; I < NumPrimitives; ++I)
 	{
 		Indices[I] = static_cast<int64>(I);
+
+		// Additional safety check: verify primitive pointer is valid
+		if (!Primitives[I])
+		{
+			// Use zero bounds for invalid primitive
+			PrimBounds[I] = FAABB(FVector::ZeroVector(), FVector::ZeroVector());
+			PrimMinX[I] = PrimMinY[I] = PrimMinZ[I] = 0.0f;
+			PrimMaxX[I] = PrimMaxY[I] = PrimMaxZ[I] = 0.0f;
+			PrimCentX[I] = PrimCentY[I] = PrimCentZ[I] = 0.0f;
+			PrimSphereRadiusSq[I] = 0.0f;
+			continue;
+		}
+
 		PrimIndexMap[Primitives[I]] = static_cast<int64>(I);
 
 		FVector MinW{}, MaxW{};
@@ -68,7 +81,7 @@ void FSceneBVH::Build(const TArray<UPrimitiveComponent*>& InPrimitives)
 		}
 		catch (...)
 		{
-			// 기본값으로 설정
+			// 기본값으로 설정 (삭제된 객체에 접근한 경우)
 			MinW = FVector::ZeroVector();
 			MaxW = FVector::ZeroVector();
 		}

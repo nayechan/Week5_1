@@ -99,6 +99,21 @@ void UEditor::Update()
 	FViewport* Viewport = Renderer.GetViewportClient();
 	UInputManager& InputManager = UInputManager::GetInstance();
 
+	// CRITICAL: Update all world transforms BEFORE any picking or BVH operations
+	// Level::Update() is called AFTER Editor::Update(), so we must update transforms here first
+	ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+	if (CurrentLevel)
+	{
+		TArray<AActor*> Actors = CurrentLevel->GetActorsPtrs();
+		for (auto& Actor : Actors)
+		{
+			if (Actor && Actor->GetRootComponent())
+			{
+				Actor->GetRootComponent()->UpdateWorldTransform();
+			}
+		}
+	}
+
 	// 뷰포트 레이아웃은 PIE 모드와 관계없이 항상 업데이트
 	// (창 크기 변경, 스플리터 드래그, 뷰포트 전환 애니메이션 등)
 	UpdateLayout();
@@ -146,27 +161,49 @@ void UEditor::Update()
 		}
 	}
 
-	// 3. 선택된 액터의 BoundingBox 업데이트
-	if (AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor())
+	// 3. 선택된 오브젝트의 BoundingBox 업데이트
+	// Use UIManager's SelectedObject to show bounds for selected component
+	TObjectPtr<UObject> SelectedObject = UUIManager::GetInstance().GetSelectedObject();
+	if (SelectedObject)
 	{
-		for (const auto& Component : SelectedActor->GetOwnedComponents())
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (!CurrentLevel) return;  // SAFETY: Defensive nullptr check
+
+		uint64 ShowFlags = CurrentLevel->GetShowFlags();
+
+		if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
 		{
-			if (auto PrimitiveComponent = Cast<UPrimitiveComponent>(Component))
+			UPrimitiveComponent* PrimitiveToShow = nullptr;
+
+			// Check if SelectedObject is an Actor or a Component
+			if (AActor* SelectedActor = Cast<AActor>(SelectedObject.Get()))
 			{
-				FVector WorldMin, WorldMax;
-				PrimitiveComponent->GetWorldAABB(WorldMin, WorldMax);
-
-				uint64 ShowFlags = ULevelManager::GetInstance().GetCurrentLevel()->GetShowFlags();
-
-				if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
+				// Show bounds for actor's root component
+				if (USceneComponent* RootComp = SelectedActor->GetRootComponent())
 				{
-					BatchLines.UpdateBoundingBoxVertices(FAABB(WorldMin, WorldMax));
-				}
-				else
-				{
-					BatchLines.UpdateBoundingBoxVertices({ { 0.0f,0.0f,0.0f }, { 0.0f, 0.0f, 0.0f } });
+					PrimitiveToShow = Cast<UPrimitiveComponent>(RootComp);
 				}
 			}
+			else if (UActorComponent* SelectedComponent = Cast<UActorComponent>(SelectedObject.Get()))
+			{
+				// Show bounds for selected component
+				PrimitiveToShow = Cast<UPrimitiveComponent>(SelectedComponent);
+			}
+
+			if (PrimitiveToShow)
+			{
+				FVector WorldMin, WorldMax;
+				PrimitiveToShow->GetWorldAABB(WorldMin, WorldMax);
+				BatchLines.UpdateBoundingBoxVertices(FAABB(WorldMin, WorldMax));
+			}
+			else
+			{
+				BatchLines.UpdateBoundingBoxVertices({ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} });
+			}
+		}
+		else
+		{
+			BatchLines.UpdateBoundingBoxVertices({ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} });
 		}
 	}
 	else
@@ -187,7 +224,10 @@ void UEditor::RenderEditor(UCamera* InCamera)
 	// Render Gizmo & Billboard
 	if (InCamera)
 	{
-		AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor();
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (!CurrentLevel) return;  // SAFETY: Defensive nullptr check
+
+		AActor* SelectedActor = CurrentLevel->GetSelectedActor();
 		if (!SelectedActor) return;
 
 		Gizmo.RenderGizmo(SelectedActor, InCamera);
@@ -548,8 +588,16 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 	const FVector& MousePos = InputManager.GetMousePosition();
 	const D3D11_VIEWPORT& ViewportInfo = CurrentViewport->GetViewportInfo();
 
-	const float NdcX = ((MousePos.X - ViewportInfo.TopLeftX) / ViewportInfo.Width) * 2.0f - 1.0f;
-	const float NdcY = -(((MousePos.Y - ViewportInfo.TopLeftY) / ViewportInfo.Height) * 2.0f - 1.0f);
+	// 다중 뷰포트에서의 정확한 NDC 변환
+	float RelativeX = MousePos.X - ViewportInfo.TopLeftX;
+	float RelativeY = MousePos.Y - ViewportInfo.TopLeftY;
+	
+	// 뷰포트 경계 체크 및 클램핑
+	RelativeX = max(0.0f, min(RelativeX, ViewportInfo.Width));
+	RelativeY = max(0.0f, min(RelativeY, ViewportInfo.Height));
+	
+	const float NdcX = (RelativeX / ViewportInfo.Width) * 2.0f - 1.0f;
+	const float NdcY = -((RelativeY / ViewportInfo.Height) * 2.0f - 1.0f);
 
 	FRay WorldRay = CurrentCamera->ConvertToWorldRay(NdcX, NdcY);
 
@@ -574,14 +622,29 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			// 드래그 끝나면 선택 액터의 프리미티브를 더티 큐에 등록
 			MarkActorPrimitivesDirty(Gizmo.GetSelectedActor());
 
-			// Octree 동적 목록으로 이동
-			for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
+			// Update transform of the dragged component and its children
+			if (USceneComponent* DraggedComponent = Gizmo.GetTargetComponent())
 			{
-				if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
+				DraggedComponent->UpdateWorldTransform();
+			}
+			// Also update root component in case it wasn't the dragged component
+			else if (Gizmo.GetSelectedActor()->GetRootComponent())
+			{
+				Gizmo.GetSelectedActor()->GetRootComponent()->UpdateWorldTransform();
+			}
+
+			// Octree 동적 목록으로 이동
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)  // SAFETY: Defensive nullptr check
+			{
+				for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
 				{
-					if (Prim->GetPrimitiveType() != EPrimitiveType::Billboard)
+					if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
 					{
-						ULevelManager::GetInstance().GetCurrentLevel()->MoveToDynamic(Prim);
+						if (Prim->GetPrimitiveType() != EPrimitiveType::Billboard)
+						{
+							CurrentLevel->MoveToDynamic(Prim);
+						}
 					}
 				}
 			}
@@ -689,7 +752,8 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 TArray<UPrimitiveComponent*> UEditor::FindCandidatePrimitives(ULevel* InLevel)
 {
 	TArray<UPrimitiveComponent*> Candidate;
-	for (AActor* Actor : InLevel->GetActors())
+	TArray<AActor*> Actors = InLevel->GetActorsPtrs();
+	for (AActor* Actor : Actors)
 	{
 		for (auto& ActorComponent : Actor->GetOwnedComponents())
 		{
@@ -718,7 +782,12 @@ void UEditor::EnsureBVHUpToDate(ULevel* InLevel)
 		RawPrims.reserve(LevelPrims.size());
 		for (auto& Prim : LevelPrims)
 		{
-			RawPrims.push_back(Prim);
+			// Safety check: Only add valid primitives (not deleted or pending kill)
+			UPrimitiveComponent* PrimPtr = Prim.Get();
+			if (PrimPtr && !PrimPtr->IsPendingKill())
+			{
+				RawPrims.push_back(PrimPtr);
+			}
 		}
 
 		SceneBVH.Build(RawPrims);
@@ -885,7 +954,33 @@ FVector UEditor::GetGizmoDragLocation(UCamera* InActiveCamera, FRay& WorldRay)
 		GizmoAxis = GizmoAxis4 * FMatrix::RotationMatrix(RadRotation);
 	}
 
-	if (ObjectPicker.IsRayCollideWithPlane(WorldRay, PlaneOrigin, InActiveCamera->CalculatePlaneNormal(GizmoAxis).Cross(GizmoAxis), MouseWorld))
+	// 다중 뷰포트에서 안정적인 평면 법선 버그 계산
+	FVector PlaneNormal = InActiveCamera->CalculatePlaneNormal(GizmoAxis).Cross(GizmoAxis);
+	
+	// 평면 법선이 너무 작을 때 대체 법선 사용
+	if (PlaneNormal.LengthSquared() < 1e-6f)
+	{
+		// 카메라 Forward와 기즈모 축이 평행할 때 대체 법선 사용
+		FVector CameraRight = InActiveCamera->GetRight();
+		FVector CameraUp = InActiveCamera->GetUp();
+		
+		// 기쥸모 축과 수직인 방향 중 더 안정적인 것 선택
+		float RightDot = abs(CameraRight.Dot(GizmoAxis));
+		float UpDot = abs(CameraUp.Dot(GizmoAxis));
+		
+		if (RightDot < UpDot)
+		{
+			PlaneNormal = CameraRight.Cross(GizmoAxis);
+		}
+		else
+		{
+			PlaneNormal = CameraUp.Cross(GizmoAxis);
+		}
+		
+		PlaneNormal.Normalize();
+	}
+	
+	if (ObjectPicker.IsRayCollideWithPlane(WorldRay, PlaneOrigin, PlaneNormal, MouseWorld))
 	{
 		FVector MouseDistance = MouseWorld - Gizmo.GetDragStartMouseLocation();
 		return Gizmo.GetDragStartActorLocation() + GizmoAxis * MouseDistance.Dot(GizmoAxis);
@@ -919,16 +1014,22 @@ FVector UEditor::GetGizmoDragRotation(UCamera* InActiveCamera, FRay& WorldRay)
 			Angle = -Angle;
 		}
 
-		FQuaternion StartRotQuat = FQuaternion::FromEuler(Gizmo.GetDragStartActorRotation());
+		// Use stored Quaternion to avoid Euler wrapping issues
+		FQuaternion StartRotQuat = Gizmo.GetDragStartActorRotationQuat();
 		FQuaternion DeltaRotQuat = FQuaternion::FromAxisAngle(Gizmo.GetGizmoAxis(), Angle);
+		FQuaternion ResultQuat;
+
 		if (Gizmo.IsWorldMode())
 		{
-			return (DeltaRotQuat * StartRotQuat).ToEuler();
+			ResultQuat = DeltaRotQuat * StartRotQuat;
 		}
 		else
 		{
-			return (StartRotQuat * DeltaRotQuat).ToEuler();
+			ResultQuat = StartRotQuat * DeltaRotQuat;
 		}
+
+		// Convert to Euler only once at the end
+		return ResultQuat.ToEuler();
 	}
 	return Gizmo.GetActorRotation();
 }

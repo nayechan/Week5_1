@@ -16,7 +16,7 @@
 
 FRay UObjectPicker::GetModelRay(const FRay& Ray, UPrimitiveComponent* Primitive)
 {
-	FMatrix ModelInverse = Primitive->GetWorldTransformMatrixInverse();
+	FMatrix ModelInverse = Primitive->GetWorldTransformInverse();
 
 	FRay ModelRay;
 	ModelRay.Origin = Ray.Origin * ModelInverse;
@@ -36,8 +36,8 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 		/*if (Primitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 		{
 			continue;
-		}*/
-		FMatrix ModelMat = Primitive->GetWorldTransformMatrix();
+		}*/ 
+		FMatrix ModelMat = Primitive->GetWorldTransform();
 		FRay ModelRay = GetModelRay(WorldRay, Primitive);
 		if (IsRayPrimitiveCollided(InActiveCamera, ModelRay, Primitive, ModelMat, &PrimitiveDistance))
 			//Ray와 Primitive가 충돌했다면 거리 테스트 후 가까운 Actor Picking
@@ -67,7 +67,7 @@ bool UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const FRay& WorldRay,
 	}
 
 	// Transform 계산
-	FMatrix ModelMat = Primitive->GetWorldTransformMatrix();
+	FMatrix ModelMat = Primitive->GetWorldTransform();
 	FRay ModelRay = GetModelRay(WorldRay, Primitive);
 
 	float Dist = D3D11_FLOAT32_MAX;
@@ -152,7 +152,7 @@ void UObjectPicker::PickGizmo(UCamera* InActiveCamera, const FRay& WorldRay, UGi
 
 				}
 				X = (-B - sqrtf(Det)) / A;
-				PointOnCylinder = WorldRay.Origin + WorldRay.Direction * X;
+				PointOnCylinder = WorldRayOrigin + WorldRayDirection * X;
 				Height = (PointOnCylinder - GizmoLocation).Dot(GizmoAxis);
 				if (Height <= GizmoHeight && Height >= 0)
 				{
@@ -249,11 +249,11 @@ bool UObjectPicker::IsRayPrimitiveCollided(UCamera* InActiveCamera, const FRay& 
 						// fetch triangle data from mesh-level SoA (v0 + edges)
 						FVector v0, e1, e2;
 						MBVH->GetTriV0E1E2(TriIndex, v0, e1, e2);
-						
+
 						// reconstruct v1/v2 from v0 + edges
 						const FVector v1 = FVector(v0.X + e1.X, v0.Y + e1.Y, v0.Z + e1.Z);
 						const FVector v2 = FVector(v0.X + e2.X, v0.Y + e2.Y, v0.Z + e2.Z);
-						
+
 						float Dist = LocalBest;
 
 						// Pass precomputed wdLen and wdDotCam to avoid per-hit transforms

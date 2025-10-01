@@ -49,7 +49,7 @@ void USceneHierarchyWidget::RenderWidget()
 	// 검색창 렌더링
 	RenderSearchBar();
 
-	const TArray<AActor*>& Actors = CurrentLevel->GetActors();
+	TArray<AActor*> Actors = CurrentLevel->GetActorsPtrs();
 
 	if (Actors.empty())
 	{
@@ -314,7 +314,7 @@ void USceneHierarchyWidget::FocusOnActor(AActor* InActor)
 		return;
 	}
 
-	const FMatrix& ActorWorldMatrix = InActor->GetRootComponent()->GetWorldTransformMatrix();
+	const FMatrix& ActorWorldMatrix = InActor->GetRootComponent()->GetWorldTransform();
 	FVector ActorForward = { ActorWorldMatrix.Data[0][0], ActorWorldMatrix.Data[0][1], ActorWorldMatrix.Data[0][2] };
 	ActorForward.Normalize();
 

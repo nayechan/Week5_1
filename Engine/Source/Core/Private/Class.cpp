@@ -26,7 +26,6 @@ UClass::UClass(const FName& InName, TObjectPtr<UClass> InSuperClass, size_t InCl
 	ClassConstructorType InConstructor)
 	: ClassName(InName), SuperClass(InSuperClass), ClassSize(InClassSize), Constructor(InConstructor)
 {
-	UE_LOG("UClass: 클래스 등록: %s", ClassName.ToString().data());
 }
 
 /**
@@ -103,7 +102,6 @@ void UClass::SignUpClass(TObjectPtr<UClass> InClass)
 	if (InClass)
 	{
 		GetAllClasses().emplace_back(InClass);
-		UE_LOG("UClass: Class registered: %s (Total: %llu)", InClass->GetClassTypeName().ToString().data(), GetAllClasses().size());
 	}
 }
 
@@ -159,4 +157,24 @@ void UClass::Shutdown()
 	}
 
 	(void)GetAllClasses().empty();
+}
+
+TArray<TObjectPtr<UClass>> UClass::GetSubclassesOf(TObjectPtr<UClass> InParentClass)
+{
+	TArray<TObjectPtr<UClass>> SubClasses;
+	if (!InParentClass)
+	{
+		return SubClasses;
+	}
+
+	// private static 함수인 GetAllClasses()를 클래스 내부에서 안전하게 호출
+	const auto& AllClasses = GetAllClasses();
+	for (const auto& Class : AllClasses)
+	{
+		if (Class && Class->IsChildOf(InParentClass) && Class != InParentClass)
+		{
+			SubClasses.push_back(Class);
+		}
+	}
+	return SubClasses;
 }

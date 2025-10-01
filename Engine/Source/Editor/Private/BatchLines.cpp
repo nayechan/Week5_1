@@ -41,11 +41,26 @@ UBatchLines::UBatchLines()
 
 UBatchLines::~UBatchLines()
 {
-	URenderer::ReleaseVertexBuffer(Primitive.Vertexbuffer);
-	Primitive.InputLayout->Release();
-	Primitive.VertexShader->Release();
-	Primitive.IndexBuffer->Release();
-	Primitive.PixelShader->Release();
+	if (Primitive.Vertexbuffer)
+	{
+		URenderer::ReleaseVertexBuffer(Primitive.Vertexbuffer);
+	}
+	if (Primitive.InputLayout)
+	{
+		Primitive.InputLayout->Release();
+	}
+	if (Primitive.VertexShader)
+	{
+		Primitive.VertexShader->Release();
+	}
+	if (Primitive.IndexBuffer)
+	{
+		Primitive.IndexBuffer->Release();
+	}
+	if (Primitive.PixelShader)
+	{
+		Primitive.PixelShader->Release();
+	}
 }
 
 void UBatchLines::UpdateUGridVertices(const float newCellSize)
