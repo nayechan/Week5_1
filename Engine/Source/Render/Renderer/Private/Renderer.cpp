@@ -547,7 +547,8 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	uint32 dynamicRenderedCount = 0;
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
-		if (!DynPrim)
+		// Skip null or deleted components
+		if (!DynPrim || DynPrim->IsPendingKill())
 		{
 			continue;
 		}
@@ -685,8 +686,8 @@ void URenderer::RenderEnd() const
 
 void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState)
 {
-	// Safety check: Component might have been deleted between frame preparation and rendering
-	if (!InMeshComp)
+	// Safety check: Component might have been deleted or marked for deletion
+	if (!InMeshComp || InMeshComp->IsPendingKill())
 	{
 		return;
 	}
