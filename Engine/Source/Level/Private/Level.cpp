@@ -356,48 +356,50 @@ bool ULevel::DestroyActor(AActor* InActor)
 		SelectedActor = nullptr;
 	}
 
-	// Remove Primitive Component - use GetAllComponents() to include children
+	// CRITICAL FIX: Remove all references to components BEFORE deleting the actor
+	// to avoid dangling pointer access and heap corruption
+
+	// Step 1: Get all components while actor is still valid
 	TArray<UActorComponent*> AllComponents = InActor->GetAllComponents();
 	UE_LOG("Level: DestroyActor - Removing %d components from %s", AllComponents.size(), InActor->GetName().ToString().data());
 
+	// Step 2: Remove components from all collections BEFORE deleting actor memory
 	for (UActorComponent* ActorComponent : AllComponents)
 	{
 		if (!ActorComponent) continue;
 
-		// Remove from LevelPrimitiveComponents
-		// Use lambda to properly compare TObjectPtr with raw pointer
-		auto Iterator = std::find_if(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(),
-			[ActorComponent](const TObjectPtr<UPrimitiveComponent>& Ptr) {
-				return Ptr.Get() == ActorComponent;
-			});
-
-		if (Iterator != LevelPrimitiveComponents.end())
-		{
-			LevelPrimitiveComponents.erase(Iterator);
-			UE_LOG("  - Removed component %s from LevelPrimitiveComponents", ActorComponent->GetName().ToString().data());
-		}
-
-		// If it's a PrimitiveComponent, also remove from spatial structures
+		// If it's a PrimitiveComponent, remove from spatial structures first
 		if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComponent))
 		{
-			// 1) Attempt to remove from the static octree
+			// 1) Remove from the static octree
 			StaticOctree.Remove(PrimComp);
 
-			// 2) Remove from dynamic primitives array
-			for (auto It = DynamicPrimitives.begin(); It != DynamicPrimitives.end(); ++It)
-			{
-				if (It->Get() == PrimComp)
-				{
-					DynamicPrimitives.erase(It);
-					break;
-				}
-			}
+			// 2) Remove from LevelPrimitiveComponents using remove-erase idiom
+			// This is safe because we compare pointers before deletion
+			LevelPrimitiveComponents.erase(
+				std::remove_if(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(),
+					[PrimComp](const TObjectPtr<UPrimitiveComponent>& Ptr) {
+						return Ptr.Get() == PrimComp;
+					}),
+				LevelPrimitiveComponents.end()
+			);
+
+			// 3) Remove from dynamic primitives array using remove-erase idiom
+			DynamicPrimitives.erase(
+				std::remove_if(DynamicPrimitives.begin(), DynamicPrimitives.end(),
+					[PrimComp](const TObjectPtr<UPrimitiveComponent>& Ptr) {
+						return Ptr.Get() == PrimComp;
+					}),
+				DynamicPrimitives.end()
+			);
+
+			UE_LOG("  - Removed component %s from all collections", PrimComp->GetName().ToString().data());
 		}
 	}
 
 	UE_LOG("Level: After component removal, LevelPrimitiveComponents size: %zu", LevelPrimitiveComponents.size());
 
-	// Remove
+	// Step 3: NOW it's safe to delete the actor (all references have been cleared)
 	delete InActor;
 
 	UE_LOG("Level: Actor Destroyed Successfully");
@@ -414,6 +416,12 @@ void ULevel::MarkActorForDeletion(AActor* InActor)
 	}
 
 	// 이미 삭제 대기 중인지 확인
+	if (InActor->IsPendingKill())
+	{
+		UE_LOG("Level: Actor Already Marked For Deletion (via PendingKill flag)");
+		return;
+	}
+
 	for (AActor* PendingActor : ActorsToDelete)
 	{
 		if (PendingActor == InActor)
@@ -423,9 +431,21 @@ void ULevel::MarkActorForDeletion(AActor* InActor)
 		}
 	}
 
+	// CRITICAL: Mark actor and all its components as pending kill IMMEDIATELY
+	// This prevents any further use of this object before actual deletion
+	InActor->MarkPendingKill();
+	TArray<UActorComponent*> AllComponents = InActor->GetAllComponents();
+	for (UActorComponent* Component : AllComponents)
+	{
+		if (Component)
+		{
+			Component->MarkPendingKill();
+		}
+	}
+
 	// 삭제 대기 리스트에 추가
 	ActorsToDelete.push_back(InActor);
-	UE_LOG("Level: 다음 Tick에 Actor를 제거하기 위한 마킹 처리: %s", InActor->GetName().ToString().data());
+	UE_LOG("Level: 다음 Tick에 Actor를 제거하기 위한 마킹 처리: %s (PendingKill set)", InActor->GetName().ToString().data());
 
 	// 선택 해제는 바로 처리
 	if (SelectedActor == InActor)

@@ -772,10 +772,11 @@ void UEditor::EnsureBVHUpToDate(ULevel* InLevel)
 		RawPrims.reserve(LevelPrims.size());
 		for (auto& Prim : LevelPrims)
 		{
-			// Safety check: Only add valid primitives (not deleted)
-			if (Prim.Get())
+			// Safety check: Only add valid primitives (not deleted or pending kill)
+			UPrimitiveComponent* PrimPtr = Prim.Get();
+			if (PrimPtr && !PrimPtr->IsPendingKill())
 			{
-				RawPrims.push_back(Prim.Get());
+				RawPrims.push_back(PrimPtr);
 			}
 		}
 

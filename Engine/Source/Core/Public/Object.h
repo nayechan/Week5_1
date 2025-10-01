@@ -43,10 +43,12 @@ public:
 	uint64 GetAllocatedBytes() const { return AllocatedBytes; }
 	uint32 GetAllocatedCount() const { return AllocatedCounts; }
 	uint32 GetUUID() const { return UUID; }
+	bool IsPendingKill() const { return bPendingKill; }
 
 	void SetName(const FName& InName) { Name = InName; }
 	void SetOuter(UObject* InObject);
 	void SetDisplayName(const FString& InName) const { Name.SetDisplayName(InName); }
+	void MarkPendingKill() { bPendingKill = true; }
 
 private:
 	// 4. Private 멤버 함수
@@ -60,6 +62,7 @@ private:
 	TObjectPtr<UObject> Outer;
 	uint64 AllocatedBytes = 0;
 	uint32 AllocatedCounts = 0;
+	bool bPendingKill = false;  // Safety flag to detect use-after-free
 };
 
 
