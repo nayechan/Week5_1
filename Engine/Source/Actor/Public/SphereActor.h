@@ -3,6 +3,7 @@
 #include "Actor/Public/Actor.h"
 
 class USphereComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class ASphereActor : public AActor
@@ -14,4 +15,5 @@ public:
 	ASphereActor();
 private:
 	USphereComponent* SphereComponent = nullptr;
+	UTextRenderComponent* UUIDRenderComponent = nullptr;
 };

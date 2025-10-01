@@ -2,6 +2,7 @@
 #include "Actor/Public/Actor.h"
 
 class UTriangleComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class ATriangleActor : public AActor
@@ -17,4 +18,5 @@ public:
 
 private:
 	UTriangleComponent* TriangleComponent = nullptr;
+	UTextRenderComponent* UUIDRenderComponent = nullptr;
 };

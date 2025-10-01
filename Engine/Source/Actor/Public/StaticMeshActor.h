@@ -3,6 +3,7 @@
 #include "Component/Mesh/Public/StaticMeshComponent.h"
 
 class UCubeComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class AStaticMeshActor : public AActor
@@ -15,4 +16,5 @@ public:
 
 private:
 	UStaticMeshComponent* StaticMeshComponent = nullptr;
+	UTextRenderComponent* UUIDRenderComponent = nullptr;
 };

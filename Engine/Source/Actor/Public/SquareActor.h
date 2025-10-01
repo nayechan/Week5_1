@@ -2,6 +2,7 @@
 #include "Actor/Public/Actor.h"
 
 class USquareComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class ASquareActor : public AActor
@@ -16,4 +17,5 @@ public:
 
 private:
 	USquareComponent* SquareComponent = nullptr;
+	UTextRenderComponent* UUIDRenderComponent = nullptr;
 };
