@@ -347,7 +347,7 @@ bool UObjectPicker::IsRayTriangleCollided(UCamera* InActiveCamera, const FRay& R
 	if (abs(Determinant) <= NoInverse) return false;
 
 	// Back-face culling
-	if (Determinant >= 0.0f) return false;
+	// if (Determinant >= 0.0f) return false;
 
 	float V = Result.Dot(CrossE2Ray) / Determinant;
 	if (V < 0 || V > 1) return false;
