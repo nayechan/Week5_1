@@ -432,7 +432,18 @@ void ULevel::ProcessPendingDeletions()
 void ULevel::ProcessActorForInit(AActor* Actor)
 {
 	if (!Actor) return;
-	
+
+	// Force update all scenen Components' world transforms first
+	for (auto& Component : Actor->GetOwnedComponents())
+	{
+		if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
+		{
+			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
+			{
+				SceneComp->UpdateWorldTransform();
+			}
+		}
+	}
 	for (auto& Component : Actor->GetOwnedComponents())
 	{
 		if (Component->GetComponentType() >= EComponentType::Primitive)

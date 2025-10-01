@@ -229,6 +229,13 @@ UObject* AActor::Duplicate()
 		NewActor->GetRootComponent()->SetRelativeLocation(OriginalLocation);
 		NewActor->GetRootComponent()->SetRelativeRotation(OriginalRotation);
 		NewActor->GetRootComponent()->SetRelativeScale3D(OriginalScale);
+
+		//fix buf Force update world Transform immediately after copying
+		if (USceneComponent* NewRootScene = Cast<USceneComponent>(NewActor->GetRootComponent()))
+		{
+			NewRootScene->UpdateWorldTransform();
+		}
+		
 		
 		UE_LOG("AActor::Duplicate: Transform copied - Pos(%.2f,%.2f,%.2f) Rot(%.2f,%.2f,%.2f) Scale(%.2f,%.2f,%.2f)",
 		       OriginalLocation.X, OriginalLocation.Y, OriginalLocation.Z,
