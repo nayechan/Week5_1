@@ -166,7 +166,8 @@ FVector USceneComponent::GetWorldLocation() const
 
 FVector USceneComponent::GetWorldRotation() const
 {
-	return FVector::GetDegreeToRadian(FQuaternion::FromMatrix(WorldTransform).ToEuler());
+	// ToEuler() already returns degrees, no need to convert
+	return FQuaternion::FromMatrix(WorldTransform).ToEuler();
 }
 
 FVector USceneComponent::GetWorldScale3D() const
@@ -184,22 +185,30 @@ void USceneComponent::UpdateWorldTransform()
 	// Update WorldTransform if needed
 	if (bIsTransformDirty)
 	{
-		const FMatrix RelativeMatrix = FMatrix::GetModelMatrix(RelativeLocation, FVector::GetDegreeToRadian(RelativeRotation), RelativeScale3D);
-
 		if (ParentAttachment)
 		{
-			WorldTransform = RelativeMatrix * ParentAttachment->GetWorldTransform();
+			// For child components: don't apply UEToDx again (parent already has it)
+			// Build pure local transform without coordinate conversion
+			FMatrix T = FMatrix::TranslationMatrix(RelativeLocation);
+			FMatrix R = FMatrix::RotationMatrix(FVector::GetDegreeToRadian(RelativeRotation));
+			FMatrix S = FMatrix::ScaleMatrix(RelativeScale3D);
+			FMatrix LocalTransform = S * R * T;
+
+			// Apply in parent's world space
+			WorldTransform = ParentAttachment->GetWorldTransform() * LocalTransform;
 		}
 		else
 		{
-			WorldTransform = RelativeMatrix;
+			// Root component: apply UEToDx coordinate conversion
+			WorldTransform = FMatrix::GetModelMatrix(RelativeLocation, FVector::GetDegreeToRadian(RelativeRotation), RelativeScale3D);
 		}
 
 		bIsTransformDirty = false;
-		bIsTransformDirtyInverse = true; // Mark inverse as dirty when transform changes
+		// WorldTransform changed, so inverse must be updated too
+		bIsTransformDirtyInverse = true;
 	}
 
-	// Update WorldTransformInverse if needed
+	// IMPORTANT: Update inverse transform whenever WorldTransform changes
 	if (bIsTransformDirtyInverse)
 	{
 		// Calculate inverse using the same transform components that created WorldTransform
@@ -224,7 +233,8 @@ void USceneComponent::UpdateWorldTransform()
 		bIsTransformDirtyInverse = false;
 	}
 
-	// Update children transforms
+	bIsTransformDirty = false;
+
 	for (USceneComponent* Child : Children)
 	{
 		Child->UpdateWorldTransform();

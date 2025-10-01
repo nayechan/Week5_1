@@ -249,11 +249,11 @@ bool UObjectPicker::IsRayPrimitiveCollided(UCamera* InActiveCamera, const FRay& 
 						// fetch triangle data from mesh-level SoA (v0 + edges)
 						FVector v0, e1, e2;
 						MBVH->GetTriV0E1E2(TriIndex, v0, e1, e2);
-						
+
 						// reconstruct v1/v2 from v0 + edges
 						const FVector v1 = FVector(v0.X + e1.X, v0.Y + e1.Y, v0.Z + e1.Z);
 						const FVector v2 = FVector(v0.X + e2.X, v0.Y + e2.Y, v0.Z + e2.Z);
-						
+
 						float Dist = LocalBest;
 
 						// Pass precomputed wdLen and wdDotCam to avoid per-hit transforms
