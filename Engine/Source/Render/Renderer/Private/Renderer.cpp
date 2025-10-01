@@ -768,9 +768,9 @@ void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCu
 		return;
 	}
 
-	FMatrix RT;
-	// TODO: FMatrix RT = InTextRenderComp->GetRTMatrix();
-
+	InTextRenderComp->UpdateRotationMatrix(InCurrentCamera->GetLocation());
+	FMatrix RT = InTextRenderComp->GetRTMatrix();
+	
 	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
 	FontRenderer->RenderText(InTextRenderComp->GetText().c_str(), RT, viewProjConstData);
 }

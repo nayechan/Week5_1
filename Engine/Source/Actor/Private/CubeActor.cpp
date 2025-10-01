@@ -15,4 +15,5 @@ ACubeActor::ACubeActor()
 	UUIDTextComponent->SetParentAttachment(GetRootComponent());
 	UUIDTextComponent->SetText("UUID : " + std::to_string(GetUUID()));
 	UUIDTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 5.0f));
+	UUIDTextComponent->SetEnableBillboard(true);
 }

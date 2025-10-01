@@ -193,15 +193,6 @@ void UEditor::RenderEditor(UCamera* InCamera)
 
 		Gizmo.RenderGizmo(SelectedActor, InCamera);
 
-		for (const auto& Comp : SelectedActor->GetOwnedComponents())
-        {
-			if (UBillBoardComponent* BillboardComp = Cast<UBillBoardComponent>(Comp.Get()))
-			{
-				URenderer::GetInstance().RenderBillboard(BillboardComp, InCamera);
-				break;	// Assume one billboard per actor
-			}
-        }
-
 		// UUID Text Component
 		if (UTextRenderComponent* UUIDTextComponent = SelectedActor->GetUUIDTextComponent())
 		{
