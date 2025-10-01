@@ -157,3 +157,31 @@ void UStaticMeshComponent::SetMaterial(int32 Index, UMaterial* InMaterial)
 	}
 	OverrideMaterials[Index] = InMaterial;
 }
+
+void UStaticMeshComponent::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+	
+	UE_LOG("StaticMeshComponent::DuplicateSubObjects: Duplicating mesh data for %s", GetName().ToString().data());
+	
+	// StaticMesh 정보는 공유되므로 복사하지 않음 (이미 AssetManager에 공유됨)
+	// VertexBuffers와 IndexBuffers는 AssetManager로부터 다시 가져와야 함
+	if (StaticMesh)
+	{
+		// 원본 메시의 에셋 경로를 사용하여 다시 로드
+		FName AssetPath = StaticMesh->GetAssetPathFileName();
+		SetStaticMesh(AssetPath);
+		
+		UE_LOG("StaticMeshComponent::DuplicateSubObjects: StaticMesh data copied from %s", 
+		       AssetPath.ToString().data());
+	}
+	else
+	{
+		UE_LOG("StaticMeshComponent::DuplicateSubObjects: Warning - No StaticMesh to duplicate!");
+	}
+	
+	// OverrideMaterials 복사 (딩 복사 필요)
+	// 이미 복사된 소스의 OverrideMaterials를 가져와서 복사
+	// 하지만 이 시점에서는 원본에 접근할 수 없으므로 일단 로그만 출력
+	UE_LOG("StaticMeshComponent::DuplicateSubObjects: Component duplication completed");
+}

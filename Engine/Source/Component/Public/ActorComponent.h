@@ -38,6 +38,10 @@ public:
 
 	virtual TObjectPtr<UClass> GetSpecificWidgetClass() const;
 
+	// Object Duplication Override
+	virtual void DuplicateSubObjects() override;
+	virtual UObject* Duplicate() override;
+
 protected:
 	EComponentType ComponentType;
 	bool bComponentTickEnabled = true;

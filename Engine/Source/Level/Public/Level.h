@@ -53,9 +53,17 @@ public:
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
-	// Actor 관리 (외부 인터페이스 - 소유권 없음)
-	const TArray<AActor*>& GetActors() const { return ActorsPtrCache; }
-	TArray<AActor*>& GetActors() { return ActorsPtrCache; }
+	// Object Duplication Override
+	virtual void DuplicateSubObjects() override;
+	virtual UObject* Duplicate() override;
+
+	// PIE/World에서 요구하는 인터페이스
+	const TArray<AActor*>& GetActors() const { return Actors; }
+	TArray<AActor*>& GetActors() { return Actors; }
+
+	// 기존 인터페이스 유지 (호환성)
+	const TArray<TObjectPtr<AActor>>& GetLevelActors() const { return LevelActors; }
+	TArray<TObjectPtr<AActor>>& GetLevelActors() { return LevelActors; }
 
 	const TArray<TObjectPtr<UPrimitiveComponent>>& GetLevelPrimitiveComponents() const
 	{
@@ -66,9 +74,6 @@ public:
 	void AddActorToDynamic(AActor* Actor);
 
 	AActor* SpawnActorToLevel(UClass* InActorClass, const FName& InName = FName::GetNone());
-
-	// World 복제 시 사용 (BeginPlay 호출하지 않음)
-	void AddActorDirect(AActor* InActor);
 
 	bool DestroyActor(AActor* InActor);
 	void MarkActorForDeletion(AActor* InActor);
@@ -86,19 +91,15 @@ public:
 	void MoveToDynamic(UPrimitiveComponent* InPrim);
 
 private:
-	// 액터 저장소 (소유권 있음)
-	TArray<TObjectPtr<AActor>> Actors;
+	// PIE/World에서 사용하는 Actors 배열
+	TArray<AActor*> Actors;
 
-	// 외부 인터페이스용 캐시 (소유권 없음)
-	mutable TArray<AActor*> ActorsPtrCache;
-
+	// 기존 인터페이스 유지
+	TArray<TObjectPtr<AActor>> LevelActors;
 	TArray<TObjectPtr<UPrimitiveComponent>> LevelPrimitiveComponents;	// 액터의 하위 컴포넌트는 액터에서 관리&해제됨
 
 	// 지연 삭제를 위한 리스트
 	TArray<AActor*> ActorsToDelete;
-
-	// 캐시 동기화
-	void SyncActorsPtrCache() const;
 
 	TObjectPtr<AActor> SelectedActor = nullptr;
 
@@ -111,6 +112,12 @@ private:
 	 * 이전 Tick에서 마킹된 Actor를 제거한다
 	 */
 	void ProcessPendingDeletions();
+	
+	/**
+	 * @brief Actor를 Init 과정에서 처리하는 헬퍼 함수
+	 * Octree에 삽입하고 LevelPrimitiveComponents에 추가
+	 */
+	void ProcessActorForInit(AActor* Actor);
 
 	// Spatial Index
 	FOctree StaticOctree;
