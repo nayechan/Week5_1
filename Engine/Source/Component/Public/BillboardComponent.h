@@ -20,6 +20,7 @@ public:
 	void SetSprite(const FName& InFilePath);
 
 	UTexture* GetSprite() const { return Sprite; }
+	virtual TObjectPtr<UClass> GetSpecificWidgetClass() const override;
 
 private:
 	UTexture* Sprite = nullptr;

@@ -166,7 +166,10 @@ void UEditor::Update()
 	TObjectPtr<UObject> SelectedObject = UUIManager::GetInstance().GetSelectedObject();
 	if (SelectedObject)
 	{
-		uint64 ShowFlags = ULevelManager::GetInstance().GetCurrentLevel()->GetShowFlags();
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (!CurrentLevel) return;  // SAFETY: Defensive nullptr check
+
+		uint64 ShowFlags = CurrentLevel->GetShowFlags();
 
 		if ((ShowFlags & EEngineShowFlags::SF_Primitives) && (ShowFlags & EEngineShowFlags::SF_Bounds))
 		{
@@ -221,7 +224,10 @@ void UEditor::RenderEditor(UCamera* InCamera)
 	// Render Gizmo & Billboard
 	if (InCamera)
 	{
-		AActor* SelectedActor = ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor();
+		ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+		if (!CurrentLevel) return;  // SAFETY: Defensive nullptr check
+
+		AActor* SelectedActor = CurrentLevel->GetSelectedActor();
 		if (!SelectedActor) return;
 
 		Gizmo.RenderGizmo(SelectedActor, InCamera);
@@ -628,13 +634,17 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			}
 
 			// Octree 동적 목록으로 이동
-			for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)  // SAFETY: Defensive nullptr check
 			{
-				if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
+				for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
 				{
-					if (Prim->GetPrimitiveType() != EPrimitiveType::Billboard)
+					if (auto* Prim = Cast<UPrimitiveComponent>(Comp.Get()))
 					{
-						ULevelManager::GetInstance().GetCurrentLevel()->MoveToDynamic(Prim);
+						if (Prim->GetPrimitiveType() != EPrimitiveType::Billboard)
+						{
+							CurrentLevel->MoveToDynamic(Prim);
+						}
 					}
 				}
 			}

@@ -27,25 +27,28 @@ USceneComponent::USceneComponent()
 
 USceneComponent::~USceneComponent()
 {
-	UE_LOG("USceneComponent::~USceneComponent(): Destroying %s with %d children", 
+	UE_LOG("USceneComponent::~USceneComponent(): Destroying %s with %d children",
 	       GetName().ToString().c_str(), Children.size());
-	
+
 	// 자식들의 부모 참조를 해제 (자식들 자체는 삭제하지 않음 - Actor가 소유하고 있음)
-	for (USceneComponent* Child : Children)
+	// SAFETY: Use copy to avoid issues if destructor modifies Children array
+	TArray<USceneComponent*> ChildrenCopy = Children;
+	for (USceneComponent* Child : ChildrenCopy)
 	{
-		if (Child)
+		if (Child && !Child->IsPendingKill())
 		{
-			UE_LOG("  Clearing parent reference for child: %s", 
+			UE_LOG("  Clearing parent reference for child: %s",
 			       Child->GetName().ToString().c_str());
 			Child->ParentAttachment = nullptr;  // 부모 참조만 해제
 		}
 	}
 	Children.clear();
-	
+
 	// 내가 다른 컴포넌트의 자식이었다면, 부모에서 나를 제거
-	if (ParentAttachment)
+	// SAFETY: Only call if parent is still valid (not being destroyed)
+	if (ParentAttachment && !ParentAttachment->IsPendingKill())
 	{
-		UE_LOG("  Removing self from parent: %s", 
+		UE_LOG("  Removing self from parent: %s",
 		       ParentAttachment->GetName().ToString().c_str());
 		ParentAttachment->RemoveChild(this);
 		ParentAttachment = nullptr;
@@ -180,9 +183,14 @@ void USceneComponent::MarkAsDirty()
 		PrimitiveComp->MarkWorldAABBDirty();
 	}
 
-	for (USceneComponent* Child : Children)
+	// SAFETY: Use copy to avoid iterator invalidation if Children is modified during iteration
+	TArray<USceneComponent*> ChildrenCopy = Children;
+	for (USceneComponent* Child : ChildrenCopy)
 	{
-		Child->MarkAsDirty();
+		if (Child && !Child->IsPendingKill())
+		{
+			Child->MarkAsDirty();
+		}
 	}
 }
 
@@ -325,9 +333,14 @@ void USceneComponent::UpdateWorldTransform()
 
 	bIsTransformDirty = false;
 
-	for (USceneComponent* Child : Children)
+	// SAFETY: Use copy to avoid iterator invalidation if Children is modified during iteration
+	TArray<USceneComponent*> ChildrenCopy = Children;
+	for (USceneComponent* Child : ChildrenCopy)
 	{
-		Child->UpdateWorldTransform();
+		if (Child && !Child->IsPendingKill())
+		{
+			Child->UpdateWorldTransform();
+		}
 	}
 }
 

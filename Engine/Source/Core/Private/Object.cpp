@@ -57,6 +57,33 @@ void UObject::SetOuter(UObject* InObject)
 		return;
 	}
 
+	// SAFETY: Prevent circular Outer references (memory leak prevention)
+	if (InObject)
+	{
+		UObject* Temp = InObject;
+		int32 DepthCheck = 0;
+		const int32 MaxDepth = 1000;  // Prevent infinite loop
+
+		while (Temp)
+		{
+			if (Temp == this)
+			{
+				UE_LOG_ERROR("Circular Outer reference detected! Cannot set %s as Outer of %s",
+				             InObject->GetName().ToString().data(),
+				             GetName().ToString().data());
+				return;
+			}
+
+			if (++DepthCheck > MaxDepth)
+			{
+				UE_LOG_ERROR("Outer chain too deep (>%d). Possible circular reference.", MaxDepth);
+				return;
+			}
+
+			Temp = Temp->GetOuter();
+		}
+	}
+
 	// 기존 Outer가 있었다면, 나의 전체 메모리 사용량을 빼달라고 전파
 	// 새로운 Outer가 있다면, 나의 전체 메모리 사용량을 더해달라고 전파
 	if (Outer)

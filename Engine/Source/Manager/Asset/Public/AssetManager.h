@@ -61,6 +61,8 @@ public:
 	// Bounding Box
 	const FAABB& GetAABB(EPrimitiveType InType);
 	const FAABB& GetStaticMeshAABB(FName InName);
+	
+	TMap<FName, UTexture*>& GetAllTextures() { return Textures; }
 
 private:
 	// Vertex Resource
@@ -79,6 +81,7 @@ private:
 	TMap<EShaderType, ID3D11PixelShader*> PixelShaders;
 
 	// Texture Resource
+	TMap<FName, UTexture*> Textures;
 	TMap<FName, ID3D11ShaderResourceView*> TextureCache;
 
 	// StaticMesh Resource

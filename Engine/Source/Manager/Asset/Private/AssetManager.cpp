@@ -117,6 +117,11 @@ void UAssetManager::Initialize()
 	ID3D11PixelShader* PixelShader;
 	URenderer::GetInstance().CreatePixelShader(L"Asset/Shader/BatchLinePS.hlsl", &PixelShader);
 	PixelShaders.emplace(EShaderType::BatchLine, PixelShader);
+
+	// 텍스처 생성
+	CreateTexture("Asset/Editor/Icon/Pawn_64x.png");
+	CreateTexture("Asset/Editor/Icon/PointLight_64x.png");
+	CreateTexture("Asset/Editor/Icon/SpotLight_64x.png");
 }
 
 void UAssetManager::Release()
@@ -450,6 +455,8 @@ UTexture* UAssetManager::CreateTexture(const FName& InFilePath, const FName& InN
 	auto* Texture = new UTexture(InFilePath, InName);
 	Texture->SetRenderProxy(Proxy);
 
+	Textures.emplace(InFilePath, Texture);
+
 	return Texture;
 }
 
@@ -513,6 +520,14 @@ void UAssetManager::ReleaseAllTextures()
 		}
 	}
 	TextureCache.clear();
+
+	for (auto& Pair : Textures)
+	{
+		if (Pair.second)
+		{
+			delete Pair.second;
+		}
+	}
 }
 
 /**
