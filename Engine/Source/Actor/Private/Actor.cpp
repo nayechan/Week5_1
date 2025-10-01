@@ -3,6 +3,7 @@
 #include "Component/Public/SceneComponent.h"
 #include "Component/Mesh/Public/StaticMeshComponent.h"
 #include "Manager/Level/Public/LevelManager.h"
+#include "Manager/PIE/Public/PIEManager.h"
 #include "Level/Public/Level.h"
 
 IMPLEMENT_CLASS(AActor, UObject)
@@ -352,7 +353,11 @@ UObject* AActor::Duplicate()
 	// 서브 오브젝트들을 깊은 복사로 복제 (먼저 RootComponent 생성)
 	NewActor->DuplicateSubObjects();
 	
-	// CRITICAL: Manually duplicate child components that weren't copied by DuplicateSubObjects
+	// CRITICAL: Always duplicate child components to ensure consistency in both modes
+	// The filtering of editor-only components should be handled elsewhere if needed
+	bool bIsPIEMode = UPIEManager::GetInstance().IsPIERunning();
+	UE_LOG("AActor::Duplicate: Current mode: %s - performing child component duplication", 
+	       bIsPIEMode ? "PIE" : "Editor");
 	DuplicateChildComponents(NewActor);
 	
 	// 컴포넌트별 추가 복제 작업 (메시 정보 등)
