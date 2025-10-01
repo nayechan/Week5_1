@@ -145,7 +145,31 @@ void UActorDetailWidget::RenderComponentTree(AActor* InSelectedActor)
 
 		if (CreatableComponentClasses.empty())
 		{
-			CreatableComponentClasses = UClass::GetSubclassesOf(UActorComponent::StaticClass());
+			TArray<TObjectPtr<UClass>> AllSubclasses = UClass::GetSubclassesOf(UActorComponent::StaticClass());
+			for (const auto& Subclass : AllSubclasses)
+			{
+				// 생성할 수 없는 클래스(추상 클래스 등)는 제외합니다.
+				if (Subclass->CreateDefaultObject() != nullptr)
+				{
+					CreatableComponentClasses.push_back(Subclass);
+				}
+			}
+
+			// 이름순으로 정렬하여 일관된 순서를 보장합니다.
+			std::sort(CreatableComponentClasses.begin(), CreatableComponentClasses.end(),
+			    [](const TObjectPtr<UClass>& A, const TObjectPtr<UClass>& B)
+			    {
+				    return A->GetClassTypeName().ToString() < B->GetClassTypeName().ToString();
+			    });
+
+			// 정렬된 목록에서 중복된 클래스를 제거합니다.
+			CreatableComponentClasses.erase(std::unique(CreatableComponentClasses.begin(), CreatableComponentClasses.end(),
+				[](const TObjectPtr<UClass>& A, const TObjectPtr<UClass>& B)
+				{
+					// 클래스 이름이 같으면 중복으로 간주합니다.
+					return A->GetClassTypeName() == B->GetClassTypeName();
+				}),
+				CreatableComponentClasses.end());
 		}
 
 		for (const auto& Class : CreatableComponentClasses)
