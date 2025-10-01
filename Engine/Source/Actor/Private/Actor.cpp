@@ -1,17 +1,12 @@
 #include "pch.h"
 #include "Actor/Public/Actor.h"
 #include "Component/Public/SceneComponent.h"
-#include "Component/Public/BillBoardComponent.h"
 #include "Component/Mesh/Public/StaticMeshComponent.h"
 
 IMPLEMENT_CLASS(AActor, UObject)
 
 AActor::AActor()
-{
-	// to do: primitive factory로 빌보드 생성
-	BillBoardComponent = new UBillBoardComponent(this, 5.0f);
-	OwnedComponents.push_back(TObjectPtr<UBillBoardComponent>(BillBoardComponent));
-}
+{}
 
 AActor::AActor(UObject* InOuter)
 {
@@ -141,11 +136,6 @@ void AActor::DuplicateSubObjects()
 	if (RootComponent)
 	{
 		RootComponent->SetOwner(this);
-	}
-	
-	if (BillBoardComponent)
-	{
-		BillBoardComponent->SetOwner(this);
 	}
 	
 	for (auto& Component : OwnedComponents)

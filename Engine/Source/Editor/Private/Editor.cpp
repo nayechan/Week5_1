@@ -14,7 +14,6 @@
 #include "Manager/Config/Public/ConfigManager.h"
 #include "Manager/Time/Public/TimeManager.h"
 #include "Component/Public/PrimitiveComponent.h"
-#include "Component/Public/BillBoardComponent.h"
 #include "Component/Public/TextRenderComponent.h"
 #include "Level/Public/Level.h"
 #include "Global/Quaternion.h"
@@ -192,15 +191,6 @@ void UEditor::RenderEditor(UCamera* InCamera)
 		if (!SelectedActor) return;
 
 		Gizmo.RenderGizmo(SelectedActor, InCamera);
-
-		for (const auto& Comp : SelectedActor->GetOwnedComponents())
-        {
-			if (UBillBoardComponent* BillboardComp = Cast<UBillBoardComponent>(Comp.Get()))
-			{
-				URenderer::GetInstance().RenderBillboard(BillboardComp, InCamera);
-				break;	// Assume one billboard per actor
-			}
-        }
 
 		// UUID Text Component
 		if (UTextRenderComponent* UUIDTextComponent = SelectedActor->GetUUIDTextComponent())

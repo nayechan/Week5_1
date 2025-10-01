@@ -3,7 +3,6 @@
 #include <chrono>
 #include "Render/Renderer/Public/Pipeline.h"
 #include "Render/FontRenderer/Public/FontRenderer.h"
-#include "Component/Public/BillBoardComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Component/Mesh/Public/StaticMeshComponent.h"
 #include "Editor/Public/Editor.h"
@@ -746,21 +745,6 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 	}
 }
 
-void URenderer::RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* InCurrentCamera)
-{
-	if (!InCurrentCamera)	return;
-
-	// 이제 올바른 카메라 위치를 전달하여 빌보드 회전 업데이트
-	InBillBoardComp->UpdateRotationMatrix(InCurrentCamera->GetLocation());
-
-	FString UUIDString = "UID: " + std::to_string(InBillBoardComp->GetUUID());
-	FMatrix RT = InBillBoardComp->GetRTMatrix();
-
-	// UEditor에서 가져오는 대신, 인자로 받은 카메라의 ViewProj 행렬을 사용
-	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
-	FontRenderer->RenderText(UUIDString.c_str(), RT, viewProjConstData);
-}
-
 void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCurrentCamera)
 {
 	if (!InCurrentCamera)
@@ -768,9 +752,10 @@ void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCu
 		return;
 	}
 
-	FMatrix RT;
-	// TODO: FMatrix RT = InTextRenderComp->GetRTMatrix();
-
+	InTextRenderComp->UpdateRotationMatrix(InCurrentCamera->GetLocation());
+	FMatrix RT = InTextRenderComp->GetRTMatrix();
+	// TODO: FMatrix WorldMatrix = InTextRenderComp->GetWorldMatrix();
+	
 	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
 	FontRenderer->RenderText(InTextRenderComp->GetText().c_str(), RT, viewProjConstData);
 }
