@@ -753,7 +753,11 @@ void UEditor::EnsureBVHUpToDate(ULevel* InLevel)
 		RawPrims.reserve(LevelPrims.size());
 		for (auto& Prim : LevelPrims)
 		{
-			RawPrims.push_back(Prim);
+			// Safety check: Only add valid primitives (not deleted)
+			if (Prim.Get())
+			{
+				RawPrims.push_back(Prim.Get());
+			}
 		}
 
 		SceneBVH.Build(RawPrims);

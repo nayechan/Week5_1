@@ -26,11 +26,21 @@ void UTargetActorTransformWidget::RenderWidget()
 
 	if (SelectedObject)
 	{
-		if (AActor* SelectedActor = Cast<AActor>(SelectedObject.Get()))
+		// Safety check: Get raw pointer and verify it's valid before casting
+		UObject* RawObject = SelectedObject.Get();
+		if (!RawObject)
+		{
+			// Object was deleted, clear LastSelectedComponent
+			LastSelectedComponent = nullptr;
+			ImGui::Separator();
+			return;
+		}
+
+		if (AActor* SelectedActor = Cast<AActor>(RawObject))
 		{
 			TargetComponent = SelectedActor->GetRootComponent();
 		}
-		else if (UActorComponent* SelectedComponent = Cast<UActorComponent>(SelectedObject.Get()))
+		else if (UActorComponent* SelectedComponent = Cast<UActorComponent>(RawObject))
 		{
 			TargetComponent = Cast<USceneComponent>(SelectedComponent);
 		}

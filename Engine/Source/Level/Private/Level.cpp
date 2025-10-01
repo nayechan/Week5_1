@@ -152,6 +152,13 @@ void ULevel::Init()
 void ULevel::Update()
 {
 	// Process Delayed Task
+	static int updateCallCount = 0;
+	updateCallCount++;
+	if (!ActorsToDelete.empty())
+	{
+		UE_LOG("Level::Update (frame %d): ActorsToDelete에 %zu개 대기 중, ProcessPendingDeletions 호출 예정",
+		       updateCallCount, ActorsToDelete.size());
+	}
 	ProcessPendingDeletions();
 
 	// 최적화: Transform 업데이트를 루트 컴포넌트만 수행 (자식들은 재귀적으로 업데이트)
@@ -349,14 +356,29 @@ bool ULevel::DestroyActor(AActor* InActor)
 		SelectedActor = nullptr;
 	}
 
-	// Remove Primitive Component
-	for (const auto& Component : InActor->GetOwnedComponents())
+	// Remove Primitive Component - use GetAllComponents() to include children
+	TArray<UActorComponent*> AllComponents = InActor->GetAllComponents();
+	UE_LOG("Level: DestroyActor - Removing %d components from %s", AllComponents.size(), InActor->GetName().ToString().data());
+
+	for (UActorComponent* ActorComponent : AllComponents)
 	{
-		UActorComponent* ActorComponent = Component.Get();
-		const auto& Iterator = std::find(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(), ActorComponent);
-		if(Iterator != LevelPrimitiveComponents.end())
+		if (!ActorComponent) continue;
+
+		// Remove from LevelPrimitiveComponents
+		// Use lambda to properly compare TObjectPtr with raw pointer
+		auto Iterator = std::find_if(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(),
+			[ActorComponent](const TObjectPtr<UPrimitiveComponent>& Ptr) {
+				return Ptr.Get() == ActorComponent;
+			});
+
+		if (Iterator != LevelPrimitiveComponents.end())
+		{
 			LevelPrimitiveComponents.erase(Iterator);
-		else if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComponent))
+			UE_LOG("  - Removed component %s from LevelPrimitiveComponents", ActorComponent->GetName().ToString().data());
+		}
+
+		// If it's a PrimitiveComponent, also remove from spatial structures
+		if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComponent))
 		{
 			// 1) Attempt to remove from the static octree
 			StaticOctree.Remove(PrimComp);
@@ -372,6 +394,9 @@ bool ULevel::DestroyActor(AActor* InActor)
 			}
 		}
 	}
+
+	UE_LOG("Level: After component removal, LevelPrimitiveComponents size: %zu", LevelPrimitiveComponents.size());
+
 	// Remove
 	delete InActor;
 
@@ -407,6 +432,11 @@ void ULevel::MarkActorForDeletion(AActor* InActor)
 	{
 		SelectedActor = nullptr;
 	}
+
+	// UIManager의 SelectedObject도 해제
+	// 삭제될 액터와 관련된 모든 선택을 무조건 해제 (안전을 위해)
+	UUIManager& UIManager = UUIManager::GetInstance();
+	UIManager.SetSelectedObject(nullptr);
 }
 
 void ULevel::ProcessPendingDeletions()
@@ -416,21 +446,31 @@ void ULevel::ProcessPendingDeletions()
 		return;
 	}
 
-	UE_LOG("Level: %zu개의 객체 지연 삭제 프로세스 처리 시작", ActorsToDelete.size());
+	UE_LOG("===============================================");
+	UE_LOG("Level::ProcessPendingDeletions: %zu개의 객체 지연 삭제 프로세스 처리 시작", ActorsToDelete.size());
 
 	// 원본 배열을 복사하여 사용 (DestroyActor가 원본을 수정할 가능성에 대비)
 	TArray<AActor*> ActorsToProcess = ActorsToDelete;
 	ActorsToDelete.clear();
 
+	UE_LOG("Level::ProcessPendingDeletions: ActorsToDelete 배열 클리어 완료");
+
 	for (AActor* ActorToDelete : ActorsToProcess)
 	{
 		if (ActorToDelete)
 		{
+			UE_LOG("Level::ProcessPendingDeletions: DestroyActor 호출 - %s (ptr: %p)",
+			       ActorToDelete->GetName().ToString().data(), ActorToDelete);
 			DestroyActor(ActorToDelete);
+		}
+		else
+		{
+			UE_LOG_WARNING("Level::ProcessPendingDeletions: nullptr 액터 발견, 스킵");
 		}
 	}
 
-	UE_LOG("Level: 모든 지연 삭제 프로세스 완료");
+	UE_LOG("Level::ProcessPendingDeletions: 모든 지연 삭제 프로세스 완료");
+	UE_LOG("===============================================");
 }
 
 void ULevel::ProcessActorForInit(AActor* Actor)
