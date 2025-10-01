@@ -584,6 +584,11 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			// 드래그 끝나면 선택 액터의 프리미티브를 더티 큐에 등록
 			MarkActorPrimitivesDirty(Gizmo.GetSelectedActor());
 
+			if (Gizmo.GetSelectedActor()->GetRootComponent())
+			{
+				Gizmo.GetSelectedActor()->GetRootComponent()->UpdateWorldTransform();
+			}
+
 			// Octree 동적 목록으로 이동
 			for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
 			{

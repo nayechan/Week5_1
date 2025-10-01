@@ -14,13 +14,11 @@ public:
 	void RenderWidget() override;
 
 private:
-	UStaticMeshComponent* StaticMeshComponent{};
-
 	// Helper functions for rendering different sections
-	void RenderStaticMeshSelector();
-	void RenderMaterialSections();
-	void RenderAvailableMaterials(int32 TargetSlotIndex);
-	void RenderOptions();
+	void RenderStaticMeshSelector(UStaticMeshComponent* InTargetComponent);
+	void RenderMaterialSections(UStaticMeshComponent* InTargetComponent);
+	void RenderAvailableMaterials(UStaticMeshComponent* InTargetComponent, int32 TargetSlotIndex);
+	void RenderOptions(UStaticMeshComponent* InTargetComponent);
 
 	// Material utility functions
 	FString GetMaterialDisplayName(UMaterial* Material) const;

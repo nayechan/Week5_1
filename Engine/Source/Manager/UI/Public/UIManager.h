@@ -20,6 +20,9 @@ class UUIManager : public UObject
 	DECLARE_SINGLETON_CLASS(UUIManager, UObject)
 
 public:
+	void SetSelectedObject(TObjectPtr<UObject> InObject);
+	TObjectPtr<UObject> GetSelectedObject() const;
+
 	void Initialize();
 	void Initialize(HWND InWindowHandle);
 	void Shutdown();
@@ -57,6 +60,8 @@ public:
 	void OnSelectedActorChanged(AActor* InSelectedActor) const;
 
 private:
+	TObjectPtr<UObject> SelectedObject = nullptr;
+
 	TArray<UUIWindow*> UIWindows;
 	UUIWindow* FocusedWindow = nullptr;
 	bool bIsInitialized = false;

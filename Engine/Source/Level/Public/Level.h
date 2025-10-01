@@ -84,6 +84,8 @@ public:
 	uint64 GetShowFlags() const { return ShowFlags; }
 	void SetShowFlags(uint64 InShowFlags) { ShowFlags = InShowFlags; }
 
+	void RegisterPrimitiveComponent(UPrimitiveComponent* NewPrimitive);
+
 	// Spatial Index
 	FOctree& GetStaticOctree() { return StaticOctree; }
 	const FOctree& GetStaticOctree() const { return StaticOctree; }

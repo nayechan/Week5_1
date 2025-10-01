@@ -26,11 +26,17 @@ private:
 
 	// Helper functions
 	void RenderActorHeader(TObjectPtr<AActor> InSelectedActor);
-	static void RenderComponentTree(TObjectPtr<AActor> InSelectedActor);
-	static void RenderComponentNode(TObjectPtr<UActorComponent> InComponent);
+	void RenderComponentTree(AActor* InSelectedActor);
+	void RenderComponentNode(USceneComponent* InComponent);
+	void RenderNonSceneComponentNode(UActorComponent* InComponent);
 
 	// 이름 변경 함수
 	void StartRenamingActor(TObjectPtr<AActor> InActor);
 	void FinishRenamingActor(TObjectPtr<AActor> InActor);
 	void CancelRenamingActor();
+
+	TObjectPtr<USceneComponent> NodeToOpenNextFrame = nullptr;
+
+	// 컴포넌트 클래스 목록을 캐싱
+	static TArray<TObjectPtr<UClass>> CreatableComponentClasses;
 };

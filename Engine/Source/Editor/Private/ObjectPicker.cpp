@@ -16,7 +16,7 @@
 
 FRay UObjectPicker::GetModelRay(const FRay& Ray, UPrimitiveComponent* Primitive)
 {
-	FMatrix ModelInverse = Primitive->GetWorldTransformMatrixInverse();
+	FMatrix ModelInverse = Primitive->GetWorldTransformInverse();
 
 	FRay ModelRay;
 	ModelRay.Origin = Ray.Origin * ModelInverse;
@@ -37,7 +37,7 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 		{
 			continue;
 		}
-		FMatrix ModelMat = Primitive->GetWorldTransformMatrix();
+		FMatrix ModelMat = Primitive->GetWorldTransform();
 		FRay ModelRay = GetModelRay(WorldRay, Primitive);
 		if (IsRayPrimitiveCollided(InActiveCamera, ModelRay, Primitive, ModelMat, &PrimitiveDistance))
 			//Ray와 Primitive가 충돌했다면 거리 테스트 후 가까운 Actor Picking
@@ -67,7 +67,7 @@ bool UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const FRay& WorldRay,
 	}
 
 	// Transform 계산
-	FMatrix ModelMat = Primitive->GetWorldTransformMatrix();
+	FMatrix ModelMat = Primitive->GetWorldTransform();
 	FRay ModelRay = GetModelRay(WorldRay, Primitive);
 
 	float Dist = D3D11_FLOAT32_MAX;
