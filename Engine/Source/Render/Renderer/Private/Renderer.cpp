@@ -374,6 +374,15 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	if (!TargetLevel)
 		return;
 
+	// CRITICAL: Validate Level has actors before rendering
+	// If Level is being cleaned up, actors might be deleted
+	const auto& LevelActors = TargetLevel->GetActors();
+	if (LevelActors.empty())
+	{
+		// Level is empty or being cleaned up, skip rendering
+		return;
+	}
+
 	// 통계 초기화
 	uint32 totalStaticPrimitives = TargetLevel->GetStaticOctree().GetObjectCount();
 	uint32 totalDynamicPrimitives = TargetLevel->GetDynamicPrimitives().size();
@@ -801,6 +810,11 @@ void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCu
 
 void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3D11RasterizerState* InRasterizerState)
 {
+	// CRITICAL: Validate primitive component and buffers before rendering
+	if (!InPrimitiveComp || !InPrimitiveComp->GetVertexBuffer())
+	{
+		return;
+	}
 
 	// Update pipeline info
 	FPipelineInfo PipelineInfo = {
@@ -821,6 +835,7 @@ void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3
 	UpdateConstant(InPrimitiveComp->GetColor());
 
 	// Bind vertex buffer
+	uint32 Stride = sizeof(FNormalVertex);
 	Pipeline->SetVertexBuffer(InPrimitiveComp->GetVertexBuffer(), Stride);
 
 	// Draw vertex + index

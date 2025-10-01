@@ -99,10 +99,26 @@ TObjectPtr<UClass> UClass::FindClass(const FName& InClassName)
  */
 void UClass::SignUpClass(TObjectPtr<UClass> InClass)
 {
-	if (InClass)
+	if (!InClass)
 	{
-		GetAllClasses().emplace_back(InClass);
+		return;
 	}
+
+	// 중복 등록 방지: 같은 이름의 클래스가 이미 등록되어 있는지 확인
+	const FName& ClassName = InClass->GetClassTypeName();
+	for (const TObjectPtr<UClass>& ExistingClass : GetAllClasses())
+	{
+		if (ExistingClass && ExistingClass->GetClassTypeName() == ClassName)
+		{
+			// 이미 등록된 클래스면 등록하지 않음
+			return;
+		}
+	}
+
+	// 등록 로그 출력
+	UE_LOG("UClass: 클래스 등록: %s", ClassName.ToString().data());
+	GetAllClasses().emplace_back(InClass);
+	UE_LOG("UClass: Class registered: %s (Total: %zu)", ClassName.ToString().data(), GetAllClasses().size());
 }
 
 /**

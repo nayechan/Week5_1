@@ -201,22 +201,23 @@ void ULevel::Cleanup()
 	// 1. 지연 삭제 목록에 남아있는 액터들을 먼저 처리합니다.
 	ProcessPendingDeletions();
 
-	// 2. LevelActors 배열에 남아있는 모든 액터의 메모리를 해제합니다.
+	// 2. CRITICAL: Octree를 먼저 정리 (Actor 삭제 전에 포인터 참조 제거)
+	StaticOctree.Clear();
+
+	// 3. LevelActors 배열에 남아있는 모든 액터의 메모리를 해제합니다.
 	for (const auto& Actor : LevelActors)
 	{
 		delete Actor;
 	}
 	LevelActors.clear();
 
-	// 3. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컴테이너들을 비웁니다.
+	// 4. 모든 액터 객체가 삭제되었으므로, 포인터를 담고 있던 컴테이너들을 비웁니다.
 	ActorsToDelete.clear();
 	LevelPrimitiveComponents.clear();
+	DynamicPrimitives.clear();
 
-	// 4. 선택된 액터 참조를 안전하게 해제합니다.
+	// 5. 선택된 액터 참조를 안전하게 해제합니다.
 	SelectedActor = nullptr;
-
-	// 5. Octree 정리
-	StaticOctree.Clear();
 }
 
 AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)

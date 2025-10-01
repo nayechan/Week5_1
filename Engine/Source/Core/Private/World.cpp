@@ -23,6 +23,12 @@ UWorld::UWorld(const FName& InName)
 
 UWorld::~UWorld()
 {
+    // PIE World의 경우 복제된 Level을 정리
+    if (WorldType == EWorldType::PIE && Level)
+    {
+        delete Level;
+        Level = nullptr;
+    }
 }
 
 void UWorld::Serialize(const bool bInIsLoading, JSON& InOutHandle)
@@ -204,7 +210,9 @@ void UWorld::CleanupWorld()
         }
     }
 
-    // 레벨 정리
+    // CRITICAL: Level 정리만 수행, 메모리 해제는 소멸자에서 처리
+    // Editor World의 Level: LevelManager가 소유 → LevelManager::Shutdown()에서 delete
+    // PIE World의 Level: 복제본 → UWorld 소멸자에서 delete
     Level->Cleanup();
 }
 
@@ -213,8 +221,14 @@ void UWorld::DuplicateSubObjects()
 	Super::DuplicateSubObjects();
 	if (Level)
 	{
-		// Duplicate() 반환형이 UObject* 라면 캐스팅 명시
+		// 기존 Level을 복제하고 원본은 삭제하지 않음
+		// (원본은 Editor World의 Level이므로 삭제하면 안됨)
+		// 새로운 복제본만 생성하여 교체
+		ULevel* OldLevel = Level;
 		Level = static_cast<ULevel*>(Level->Duplicate());
+
+		// IMPORTANT: OldLevel은 Editor World가 소유하므로 여기서 delete하지 않음
+		// PIE World의 Level만 복제본을 가리키도록 함
 	}
 }
 
