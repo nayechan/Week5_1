@@ -15,7 +15,9 @@ public:
 	ASquareActor();
 	virtual ~ASquareActor() override {}
 
+	virtual UTextRenderComponent* GetUUIDTextComponent() const override { return UUIDTextComponent; }
+
 private:
 	USquareComponent* SquareComponent = nullptr;
-	UTextRenderComponent* UUIDRenderComponent = nullptr;
+	UTextRenderComponent* UUIDTextComponent = nullptr;
 };

@@ -7,13 +7,12 @@ IMPLEMENT_CLASS(ACubeActor, AActor)
 
 ACubeActor::ACubeActor()
 {
-	// RootComponent 세팅
 	CubeComponent = CreateDefaultSubobject<UCubeComponent>("CubeComponent");
 	SetRootComponent(CubeComponent);
 
-	// UUIDRenderComponent 세팅
-	UUIDRenderComponent = CreateDefaultSubobject<UTextRenderComponent>("UUIDRenderComponent");
-	UUIDRenderComponent->SetParentAttachment(GetRootComponent());
-	UUIDRenderComponent->SetText(std::to_string(GetUUID()));
-	UUIDRenderComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 5.0f));
+	// UUID Text Component 세팅
+	UUIDTextComponent = CreateDefaultSubobject<UTextRenderComponent>("UUIDTextComponent");
+	UUIDTextComponent->SetParentAttachment(GetRootComponent());
+	UUIDTextComponent->SetText("UUID : " + std::to_string(GetUUID()));
+	UUIDTextComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 5.0f));
 }

@@ -15,8 +15,9 @@ public:
 	ATriangleActor();
 	virtual ~ATriangleActor() override {}
 
+	virtual UTextRenderComponent* GetUUIDTextComponent() const override { return UUIDTextComponent; }
 
 private:
 	UTriangleComponent* TriangleComponent = nullptr;
-	UTextRenderComponent* UUIDRenderComponent = nullptr;
+	UTextRenderComponent* UUIDTextComponent = nullptr;
 };

@@ -13,7 +13,9 @@ class ACubeActor : public AActor
 public:
 	ACubeActor();
 
+	virtual UTextRenderComponent* GetUUIDTextComponent() const override { return UUIDTextComponent; }
+
 private:
 	UCubeComponent* CubeComponent = nullptr;
-	UTextRenderComponent* UUIDRenderComponent = nullptr;
+	UTextRenderComponent* UUIDTextComponent = nullptr;
 };

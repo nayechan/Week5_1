@@ -14,7 +14,9 @@ class AStaticMeshActor : public AActor
 public:
 	AStaticMeshActor();
 
+	virtual UTextRenderComponent* GetUUIDTextComponent() const override { return UUIDTextComponent; }
+
 private:
 	UStaticMeshComponent* StaticMeshComponent = nullptr;
-	UTextRenderComponent* UUIDRenderComponent = nullptr;
+	UTextRenderComponent* UUIDTextComponent = nullptr;
 };

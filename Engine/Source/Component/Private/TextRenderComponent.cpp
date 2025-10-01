@@ -10,8 +10,3 @@ UTextRenderComponent::UTextRenderComponent()
 
 UTextRenderComponent::~UTextRenderComponent()
 {}
-
-void UTextRenderComponent::SetText(const FString& InText)
-{
-	Text = InText;
-}
