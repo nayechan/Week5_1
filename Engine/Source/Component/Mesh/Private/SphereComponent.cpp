@@ -14,6 +14,11 @@ USphereComponent::USphereComponent()
 	Vertices = ResourceManager.GetVertexData(Type);
 	VertexBuffer = ResourceManager.GetVertexbuffer(Type);
 	NumVertices = ResourceManager.GetNumVertices(Type);
+
+	Indices = ResourceManager.GetIndexData(Type);
+	IndexBuffer = ResourceManager.GetIndexbuffer(Type);
+	NumIndices = ResourceManager.GetNumIndices(Type);
+
 	RenderState.CullMode = ECullMode::Back;
 	RenderState.FillMode = EFillMode::Solid;
 	BoundingBox = &ResourceManager.GetAABB(Type);
