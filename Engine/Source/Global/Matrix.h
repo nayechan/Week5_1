@@ -95,6 +95,7 @@ struct FMatrix
 	static FVector VectorMultiply(const FVector& v, const FMatrix& m);
 
 	FMatrix Transpose() const;
+	FMatrix Inverse() const;
 
 	FVector GetLocation() const;
 	FQuaternion GetRotation() const;

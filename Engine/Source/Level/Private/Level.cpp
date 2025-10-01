@@ -124,16 +124,26 @@ void ULevel::Init()
 		}
 	}
 
-	// 레벨 안의 모든 액터 → PrimitiveComponent 순회해서 Octree에 삽입 및 LevelPrimitiveComponents에 추가
+	// IMPORTANT: Initialize all world transforms FIRST before processing primitives
+	// 월드 변환을 먼저 업데이트해야 GetWorldAABB가 올바른 값을 반환함
 	UE_LOG("ULevel::Init: Processing %zu LevelActors and %zu Actors", LevelActors.size(), Actors.size());
-	
+
+	for (auto& Actor : LevelActors)
+	{
+		if (Actor && Actor->GetRootComponent())
+		{
+			Actor->GetRootComponent()->UpdateWorldTransform();
+		}
+	}
+
+	// 레벨 안의 모든 액터 → PrimitiveComponent 순회해서 Octree에 삽입 및 LevelPrimitiveComponents에 추가
 	// LevelActors 배열 처리
 	for (auto& Actor : LevelActors)
 	{
 		if (!Actor) continue;
 		ProcessActorForInit(Actor.Get());
 	}
-	
+
 	// PIE를 위해 Actors 배열도 처리 (중복 방지)
 	for (AActor* Actor : Actors)
 	{
@@ -153,15 +163,6 @@ void ULevel::Init()
 		if (!bAlreadyProcessed)
 		{
 			ProcessActorForInit(Actor);
-		}
-	}
-
-	// Initialize all world transforms after loading
-	for (auto& Actor : LevelActors)
-	{
-		if (Actor && Actor->GetRootComponent())
-		{
-			Actor->GetRootComponent()->UpdateWorldTransform();
 		}
 	}
 
@@ -255,11 +256,13 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 		Actors.push_back(NewActor);
 		NewActor->BeginPlay();
 
-		for (const auto& Comp : NewActor->GetOwnedComponents())
+		// Use GetAllComponents() to include nested children
+		TArray<UActorComponent*> AllComponents = NewActor->GetAllComponents();
+		for (UActorComponent* Comp : AllComponents)
 		{
-			if (auto PrimitiveComp = Cast<UPrimitiveComponent>(Comp))
+			if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Comp))
 			{
-				LevelPrimitiveComponents.push_back(PrimitiveComp);
+				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComp));
 
 				// 빌보드 컴포넌트가 아니면 DynamicPrimitives에도 추가 (렌더링용)
 				if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::BillBoard)
@@ -279,37 +282,65 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 {
 	if (!Actor) return;
 
-	for (auto& Component : Actor->GetOwnedComponents())
+	UE_LOG("Level::AddLevelPrimitiveComponent for Actor: %s", Actor->GetName().ToString().c_str());
+
+	// Use GetAllComponents() instead of GetOwnedComponents() to include nested children
+	TArray<UActorComponent*> AllComponents = Actor->GetAllComponents();
+
+	UE_LOG("  -> Got %d components from GetAllComponents()", AllComponents.size());
+
+	for (UActorComponent* Component : AllComponents)
 	{
-		if (Component->GetComponentType() >= EComponentType::Primitive)
+		if (!Component || Component->GetComponentType() < EComponentType::Primitive)
 		{
-			TObjectPtr<UPrimitiveComponent> PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
-
-			if (!PrimitiveComponent)
+			if (Component)
 			{
-				continue;
+				UE_LOG("  -> Skipping non-primitive component: %s (Type: %d)",
+					   Component->GetName().ToString().c_str(),
+					   static_cast<int>(Component->GetComponentType()));
 			}
+			continue;
+		}
 
-			/* 3가지 경우 존재.
-			1: primitive show flag가 꺼져 있으면, 도형, 빌보드 모두 렌더링 안함.
-			2: primitive show flag가 켜져 있고, billboard show flag가 켜져 있으면, 도형, 빌보드 모두 렌더링
-			3: primitive show flag가 켜져 있고, billboard show flag가 꺼져 있으면, 도형은 렌더링 하지만, 빌보드는 렌더링 안함. */
-			// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
-			if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
+		UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
+		if (!PrimitiveComponent)
+		{
+			UE_LOG("  -> Cast to PrimitiveComponent failed for: %s", Component->GetName().ToString().c_str());
+			continue;
+		}
+
+		/* 3가지 경우 존재.
+		1: primitive show flag가 꺼져 있으면, 도형, 빌보드 모두 렌더링 안함.
+		2: primitive show flag가 켜져 있고, billboard show flag가 켜져 있으면, 도형, 빌보드 모두 렌더링
+		3: primitive show flag가 켜져 있고, billboard show flag가 꺼져 있으면, 도형은 렌더링 하지만, 빌보드는 렌더링 안함. */
+		// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
+		if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
+		{
+			if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::BillBoard)
 			{
-				if (PrimitiveComponent->GetPrimitiveType() != EPrimitiveType::BillBoard)
-				{
-					LevelPrimitiveComponents.push_back(PrimitiveComponent);
-				}
-				else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard && (ShowFlags & EEngineShowFlags::SF_BillboardText) && (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
-				{
-					//TObjectPtr<UBillBoardComponent> BillBoard = Cast<UBillBoardComponent>(PrimitiveComponent);
-					//BillBoard->UpdateRotationMatrix();
-					LevelPrimitiveComponents.push_back(PrimitiveComponent);
-				}
+				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
+				UE_LOG("  -> Added to BVH: %s (Owner: %s)",
+					   PrimitiveComponent->GetName().ToString().c_str(),
+					   PrimitiveComponent->GetOwner() ? PrimitiveComponent->GetOwner()->GetName().ToString().c_str() : "None");
+			}
+			else if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard &&
+					 (ShowFlags & EEngineShowFlags::SF_BillboardText) &&
+					 (ULevelManager::GetInstance().GetCurrentLevel()->GetSelectedActor() == Actor))
+			{
+				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
+				UE_LOG("  -> Added Billboard to BVH: %s", PrimitiveComponent->GetName().ToString().c_str());
 			}
 		}
+		else
+		{
+			UE_LOG("  -> Skipping invisible or filtered component: %s (Visible: %d, ShowFlags: %llu)",
+				   PrimitiveComponent->GetName().ToString().c_str(),
+				   PrimitiveComponent->IsVisible(),
+				   ShowFlags);
+		}
 	}
+
+	UE_LOG("Level::AddLevelPrimitiveComponent completed\n");
 }
 
 
@@ -575,10 +606,23 @@ void ULevel::RegisterPrimitiveComponent(UPrimitiveComponent* NewPrimitive)
 {
 	if (!NewPrimitive) return;
 
+	UE_LOG("Level::RegisterPrimitiveComponent: %s (Owner: %s)",
+		   NewPrimitive->GetName().ToString().c_str(),
+		   NewPrimitive->GetOwner() ? NewPrimitive->GetOwner()->GetName().ToString().c_str() : "None");
+
 	// 빌보드 컴포넌트는 렌더링 목록에 직접 추가하지 않습니다.
 	if (NewPrimitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+	{
+		UE_LOG("  -> Skipping Billboard component");
 		return;
+	}
 
 	// 런타임에 생성된 컴포넌트는 DynamicPrimitives 목록에 추가하며 렌더링되도록 합니다.
 	DynamicPrimitives.push_back(TObjectPtr(NewPrimitive));
+
+	// CRITICAL: Also add to LevelPrimitiveComponents for BVH/picking
+	LevelPrimitiveComponents.push_back(TObjectPtr(NewPrimitive));
+
+	UE_LOG("  -> Added to DynamicPrimitives and LevelPrimitiveComponents (Total: %d)",
+		   LevelPrimitiveComponents.size());
 }

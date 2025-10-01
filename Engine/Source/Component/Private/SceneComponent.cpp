@@ -166,7 +166,8 @@ FVector USceneComponent::GetWorldLocation() const
 
 FVector USceneComponent::GetWorldRotation() const
 {
-	return FVector::GetDegreeToRadian(FQuaternion::FromMatrix(WorldTransform).ToEuler());
+	// ToEuler() already returns degrees, no need to convert
+	return FQuaternion::FromMatrix(WorldTransform).ToEuler();
 }
 
 FVector USceneComponent::GetWorldScale3D() const
@@ -176,23 +177,43 @@ FVector USceneComponent::GetWorldScale3D() const
 
 void USceneComponent::UpdateWorldTransform()
 {
-	if (!bIsTransformDirty)
+	if (!bIsTransformDirty && !bIsTransformDirtyInverse)
 	{
 		return;
 	}
 
-	const FMatrix RelativeMatrix = FMatrix::GetModelMatrix(RelativeLocation, FVector::GetDegreeToRadian(RelativeRotation), RelativeScale3D);
-
-	if (ParentAttachment)
+	// Update WorldTransform if needed
+	if (bIsTransformDirty)
 	{
-		WorldTransform = RelativeMatrix * ParentAttachment->GetWorldTransform();
-	}
-	else
-	{
-		WorldTransform = RelativeMatrix;
+		if (ParentAttachment)
+		{
+			// For child components: don't apply UEToDx again (parent already has it)
+			// Build pure local transform without coordinate conversion
+			FMatrix T = FMatrix::TranslationMatrix(RelativeLocation);
+			FMatrix R = FMatrix::RotationMatrix(FVector::GetDegreeToRadian(RelativeRotation));
+			FMatrix S = FMatrix::ScaleMatrix(RelativeScale3D);
+			FMatrix LocalTransform = S * R * T;
+
+			// Apply in parent's world space
+			WorldTransform = ParentAttachment->GetWorldTransform() * LocalTransform;
+		}
+		else
+		{
+			// Root component: apply UEToDx coordinate conversion
+			WorldTransform = FMatrix::GetModelMatrix(RelativeLocation, FVector::GetDegreeToRadian(RelativeRotation), RelativeScale3D);
+		}
+
+		bIsTransformDirty = false;
+		// WorldTransform changed, so inverse must be updated too
+		bIsTransformDirtyInverse = true;
 	}
 
-	bIsTransformDirty = false;
+	// IMPORTANT: Update inverse transform whenever WorldTransform changes
+	if (bIsTransformDirtyInverse)
+	{
+		WorldTransformInverse = WorldTransform.Inverse();
+		bIsTransformDirtyInverse = false;
+	}
 
 	for (USceneComponent* Child : Children)
 	{
