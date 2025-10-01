@@ -219,15 +219,16 @@ FMatrix FMatrix::ScaleMatrixInverse(const FVector& InOtherVector)
 */
 FMatrix FMatrix::RotationMatrix(const FVector& InOtherVector)
 {
-	// Input is in UE coordinates (X, Y, Z) as euler angles in radians
-	// We need to rotate around each axis directly
-	// X rotation around X-axis, Y rotation around Y-axis, Z rotation around Z-axis
+	// Dx11 yaw(y), pitch(x), roll(z)
+	// UE yaw(z), pitch(y), roll(x)
+	// 회전 축이 바뀌어서 각 회전행렬 함수에 바뀐 값을 적용
 
-	const float rotX = InOtherVector.X;
-	const float rotY = InOtherVector.Y;
-	const float rotZ = InOtherVector.Z;
-
-	return RotationX(rotX) * RotationY(rotY) * RotationZ(rotZ);
+	const float yaw = InOtherVector.Y;
+	const float pitch = InOtherVector.X;
+	const float roll = InOtherVector.Z;
+	//return RotationZ(yaw) * RotationY(pitch) * RotationX(roll);
+	//return RotationX(yaw) * RotationY(roll) * RotationZ(pitch);
+	return RotationX(pitch) * RotationY(yaw) * RotationZ(roll);
 }
 
 FMatrix FMatrix::CreateFromYawPitchRoll(const float yaw, const float pitch, const float roll)
@@ -238,12 +239,11 @@ FMatrix FMatrix::CreateFromYawPitchRoll(const float yaw, const float pitch, cons
 
 FMatrix FMatrix::RotationMatrixInverse(const FVector& InOtherVector)
 {
-	const float rotX = InOtherVector.X;
-	const float rotY = InOtherVector.Y;
-	const float rotZ = InOtherVector.Z;
+	const float yaw = InOtherVector.Y;
+	const float pitch = InOtherVector.X;
+	const float roll = InOtherVector.Z;
 
-	// Inverse: reverse order and negate angles
-	return RotationZ(-rotZ) * RotationY(-rotY) * RotationX(-rotX);
+	return RotationZ(-roll) * RotationY(-yaw) * RotationX(-pitch);
 }
 
 /**

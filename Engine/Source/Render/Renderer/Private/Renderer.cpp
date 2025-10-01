@@ -642,12 +642,9 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 	Pipeline->UpdatePipeline(PipelineInfo);
 
 	// Constant buffer & transform
+	// Use WorldTransform directly (already has UEToDx applied)
 	Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
-	UpdateConstant(
-		InMeshComp->GetWorldLocation(),
-		InMeshComp->GetWorldRotation(),
-		InMeshComp->GetWorldScale3D()
-	);
+	UpdateConstant(InMeshComp->GetWorldTransform());
 
 	Pipeline->SetVertexBuffer(vb, sizeof(FNormalVertex));
 	Pipeline->SetIndexBuffer(ib, 0);
@@ -756,12 +753,9 @@ void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3
 	Pipeline->UpdatePipeline(PipelineInfo);
 
 	// Update pipeline buffers
+	// Use WorldTransform directly (already has UEToDx applied)
 	Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
-	UpdateConstant(
-		InPrimitiveComp->GetWorldLocation(),
-		InPrimitiveComp->GetWorldRotation(),
-		InPrimitiveComp->GetWorldScale3D()
-	);
+	UpdateConstant(InPrimitiveComp->GetWorldTransform());
 	Pipeline->SetConstantBuffer(2, true, ConstantBufferColor);
 	UpdateConstant(InPrimitiveComp->GetColor());
 
