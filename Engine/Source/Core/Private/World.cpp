@@ -130,3 +130,21 @@ void UWorld::CleanupWorld()
     // 레벨 정리
     Level->Cleanup();
 }
+
+void UWorld::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+	if (Level)
+	{
+		// Duplicate() 반환형이 UObject* 라면 캐스팅 명시
+		Level = static_cast<ULevel*>(Level->Duplicate());
+	}
+}
+
+UObject* UWorld::Duplicate()
+{
+	// 얕은 복사 + 서브오브젝트 깊은 복사
+	UWorld* NewWorld = new UWorld(*this);
+	NewWorld->DuplicateSubObjects();
+	return NewWorld;
+}

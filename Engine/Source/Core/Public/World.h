@@ -63,6 +63,9 @@ public:
      */
     static UWorld* DuplicateWorldForPIE(UWorld* EditorWorld);
 
+	virtual void     DuplicateSubObjects() override;  
+	virtual UObject* Duplicate() override;
+
     /**
      * @brief PIE 플레이를 위한 액터 초기화
      */
