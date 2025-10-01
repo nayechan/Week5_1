@@ -424,10 +424,7 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 			return;
 		}
 		
-		// 렌더링되는 액터 디버그 로그
-		UE_LOG("Renderer: Rendering primitive %s (Owner: %s)", 
-		       primitive->GetName().ToString().data(),
-		       primitive->GetOwner() ? primitive->GetOwner()->GetName().ToString().data() : "null");
+		// 렌더링되는 액터 디버그 로그 (제거됨 - 너무 많은 로그)
 
 		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
 		static int lodFrameCounter = 0;
