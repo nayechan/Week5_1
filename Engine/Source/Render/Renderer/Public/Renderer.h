@@ -76,7 +76,6 @@ public:
 	void RenderLevel(FViewportClient& InViewport);
 	void RenderEnd() const;
 	void RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState);
-	void RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* InCurrentCamera);
 	void RenderText(UTextRenderComponent* TextRenderComp, UCamera* InCurrentCamera);
 	void RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3D11RasterizerState* InRasterizerState);
 	void RenderPrimitive(const FEditorPrimitive& InPrimitive, const FRenderState& InRenderState);

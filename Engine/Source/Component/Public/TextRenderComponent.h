@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Component/Public/PrimitiveComponent.h"
+#include "Global/Matrix.h"
 
 class UMaterial;
 
@@ -16,10 +17,15 @@ public:
 
 	void SetText(const FString& InText) { Text = InText; }
 	const FString& GetText() const { return Text; }
-	void SetMaterial(UMaterial* InMaterial) { Material = InMaterial; }
-	UMaterial* GetMaterial() const { return Material; }
+
+	void UpdateRotationMatrix(const FVector& InCameraLocation);
+	FMatrix GetRTMatrix() const { return RTMatrix; }
+
+	void SetEnableBillboard(bool bInEnable) { bEnableBillboard = bInEnable; }
+	bool IsBillboardEnabled() const { return bEnableBillboard; }
 
 private:
 	FString Text;
-	UMaterial* Material = nullptr;
+	FMatrix RTMatrix;
+	bool bEnableBillboard = false;
 };
