@@ -4,6 +4,8 @@
 #include "Utility/Public/JsonSerializer.h"
 #include "Actor/Public/Actor.h"
 #include "Manager/Asset/Public/AssetManager.h"
+#include "Manager/Level/Public/LevelManager.h"
+#include "Level/Public/Level.h"
 #include "Utility/Public/JsonSerializer.h"
 #include "Global/Matrix.h"
 #include "Global/Quaternion.h"
@@ -15,6 +17,12 @@ IMPLEMENT_CLASS(USceneComponent, UActorComponent)
 USceneComponent::USceneComponent()
 {
 	ComponentType = EComponentType::Scene;
+
+	// Initialize with identity transform
+	WorldTransform = FMatrix::Identity();
+	WorldTransformInverse = FMatrix::Identity();
+	bIsTransformDirty = true;
+	bIsTransformDirtyInverse = true;
 }
 
 USceneComponent::~USceneComponent()
@@ -57,6 +65,9 @@ void USceneComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 		FJsonSerializer::ReadVector(InOutHandle, "Location", RelativeLocation, FVector::ZeroVector());
 		FJsonSerializer::ReadVector(InOutHandle, "Rotation", RelativeRotation, FVector::ZeroVector());
 		FJsonSerializer::ReadVector(InOutHandle, "Scale", RelativeScale3D, FVector::OneVector());
+
+		// Mark as dirty and update transform after loading
+		MarkAsDirty();
 	}
 	// 저장
 	else
@@ -103,6 +114,8 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 	}
 
 	MarkAsDirty();
+	// Immediately update transform after parent change
+	UpdateWorldTransform();
 }
 
 void USceneComponent::AddChild(USceneComponent* NewChild)
@@ -113,6 +126,24 @@ void USceneComponent::AddChild(USceneComponent* NewChild)
 	}
 
 	Children.push_back(NewChild);
+
+	// Immediately update child's world transform
+	if (NewChild)
+	{
+		NewChild->MarkAsDirty();
+		NewChild->UpdateWorldTransform();
+
+		// CRITICAL: Register child PrimitiveComponents with the Level for rendering
+		if (UPrimitiveComponent* PrimitiveChild = Cast<UPrimitiveComponent>(NewChild))
+		{
+			// Get current level and register the component
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)
+			{
+				CurrentLevel->RegisterPrimitiveComponent(PrimitiveChild);
+			}
+		}
+	}
 
 	// 자식 컴포넌트를 Actor의 소유 목록에도 추가
 	AActor* OwnerActor = GetOwner();
@@ -159,12 +190,16 @@ void USceneComponent::SetRelativeLocation(const FVector& Location)
 {
 	RelativeLocation = Location;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetRelativeRotation(const FVector& Rotation)
 {
 	RelativeRotation = Rotation;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetRelativeScale3D(const FVector& Scale)
@@ -178,6 +213,8 @@ void USceneComponent::SetRelativeScale3D(const FVector& Scale)
 		ActualScale.Z = MinScale;
 	RelativeScale3D = ActualScale;
 	MarkAsDirty();
+	// Immediately update world transform so changes are visible right away
+	UpdateWorldTransform();
 }
 
 void USceneComponent::SetUniformScale(bool bIsUniform)
@@ -243,15 +280,28 @@ void USceneComponent::UpdateWorldTransform()
 	{
 		if (ParentAttachment)
 		{
-			// For child components: don't apply UEToDx again (parent already has it)
-			// Build pure local transform without coordinate conversion
+			// CRITICAL: Ensure parent is updated first
+			ParentAttachment->UpdateWorldTransform();
+
+			// For child components: build local transform same as root (without UEToDx)
 			FMatrix T = FMatrix::TranslationMatrix(RelativeLocation);
 			FMatrix R = FMatrix::RotationMatrix(FVector::GetDegreeToRadian(RelativeRotation));
 			FMatrix S = FMatrix::ScaleMatrix(RelativeScale3D);
 			FMatrix LocalTransform = S * R * T;
 
+			// Debug logging
+			FVector ParentWorldPos = ParentAttachment->GetWorldTransform().GetLocation();
+			FVector ChildRelativePos = RelativeLocation;
+			UE_LOG("Child Transform Debug: Parent World Pos=(%.2f, %.2f, %.2f), Child Relative=(%.2f, %.2f, %.2f), Child Scale=(%.2f, %.2f, %.2f)",
+				ParentWorldPos.X, ParentWorldPos.Y, ParentWorldPos.Z,
+				ChildRelativePos.X, ChildRelativePos.Y, ChildRelativePos.Z,
+				RelativeScale3D.X, RelativeScale3D.Y, RelativeScale3D.Z);
+
 			// Apply in parent's world space
-			WorldTransform = ParentAttachment->GetWorldTransform() * LocalTransform;
+			WorldTransform = LocalTransform * ParentAttachment->GetWorldTransform();
+
+			FVector ChildWorldPos = WorldTransform.GetLocation();
+			UE_LOG("  -> Child World Pos=(%.2f, %.2f, %.2f)", ChildWorldPos.X, ChildWorldPos.Y, ChildWorldPos.Z);
 		}
 		else
 		{

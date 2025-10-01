@@ -423,7 +423,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 			return;
 		}
 		
-		// 렌더링되는 액터 디버그 로그 (제거됨 - 너무 많은 로그)
 
 		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
 		static int lodFrameCounter = 0;
@@ -452,14 +451,20 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
+<<<<<<<<< Temporary merge branch 1
 		case EPrimitiveType::StaticMesh:
         {
             UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
             if (MeshComponent)
             {
-                UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-                if (MeshComponent)
-                {
+				// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
+				int32 LodIndex = MeshComponent->GetCurrentLODIndex();
+=========
+			case EPrimitiveType::StaticMesh:
+			{
+				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+				if (MeshComponent)
+				{
 					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
 					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
 
@@ -469,11 +474,9 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 				FVector CamerLocation = InCurrentCamera->GetLocation();
 				float DistSq = (CamerLocation - CompLocation).LengthSquared();
 
-			const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-			int32 LodIndex = 0;
-			for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
-			{
-				if (DistSq >= LodDistanceSq[i])
+				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
+				int32 LodIndex = 0;
+				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
 				{
 					if (DistSq >= LodDistanceSq[i])
 					{
@@ -481,15 +484,15 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 						break;
 					}
 					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-                    if (LodIndex >= 0 && LodIndex < 3)
-                    {
-                        lodCounts[LodIndex]++;
-                    }
-                }
-            }
-			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-			break;
-        }
+					if (LodIndex >= 0 && LodIndex < 3)
+					{
+						lodCounts[LodIndex]++;
+					}
+				}
+				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+				break;
+			}
+>>>>>>>>> Temporary merge branch 2
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
