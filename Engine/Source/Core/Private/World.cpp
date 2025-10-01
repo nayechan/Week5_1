@@ -56,46 +56,86 @@ void UWorld::Tick(float DeltaTime)
 
 UWorld* UWorld::DuplicateWorldForPIE(UWorld* EditorWorld)
 {
-    if (!EditorWorld)
-        return nullptr;
+	if (!EditorWorld)
+	{
+		UE_LOG("DuplicateWorldForPIE: EditorWorld is null!");
+		return nullptr;
+	}
 
-    // 새로운 PIE 월드 생성
-    UWorld* PIEWorld = NewObject<UWorld>(nullptr, UWorld::StaticClass(), FName("PIEWorld"));
-    if (!PIEWorld)
-        return nullptr;
+	UE_LOG("DuplicateWorldForPIE: Starting duplication of %s", EditorWorld->GetName().ToString().data());
 
-    PIEWorld->SetWorldType(EWorldType::PIE);
+	// 새로운 PIE 월드 생성
+	UWorld* PIEWorld = NewObject<UWorld>(nullptr, UWorld::StaticClass(), FName("PIEWorld"));
+	if (!PIEWorld)
+	{
+		UE_LOG("DuplicateWorldForPIE: Failed to create PIE World!");
+		return nullptr;
+	}
 
-    // 에디터 월드의 레벨을 복제
-    if (EditorWorld->GetLevel())
-    {
-        ULevel* EditorLevel = EditorWorld->GetLevel();
-        
-        // 새로운 PIE 레벨 생성
-        ULevel* PIELevel = NewObject<ULevel>(TObjectPtr<UObject>(PIEWorld), ULevel::StaticClass(), FName("PIELevel"));
-        
-        if (PIELevel)
-        {
-            // 에디터 레벨의 모든 액터들을 PIE 레벨로 복제
-            for (AActor* EditorActor : EditorLevel->GetActors())
-            {
-                if (EditorActor)
-                {
-                    // 액터 복제 (얕은 복사 + 서브오브젝트 깊은 복사)
-                    AActor* PIEActor = Cast<AActor>(EditorActor->Duplicate());
-                    if (PIEActor)
-                    {
-                        // PIE 레벨의 Actors 배열에 추가
-                        PIELevel->GetActors().push_back(PIEActor);
-                    }
-                }
-            }
-            
-            PIEWorld->SetLevel(PIELevel);
-        }
-    }
+	UE_LOG("DuplicateWorldForPIE: PIE World created successfully");
+	PIEWorld->SetWorldType(EWorldType::PIE);
 
-    return PIEWorld;
+	// 에디터 월드의 레벨을 복제
+	if (EditorWorld->GetLevel())
+	{
+		ULevel* EditorLevel = EditorWorld->GetLevel();
+		UE_LOG("DuplicateWorldForPIE: Editor Level found with %zu actors", EditorLevel->GetActors().size());
+		
+		// 새로운 PIE 레벨 생성
+		ULevel* PIELevel = NewObject<ULevel>(TObjectPtr<UObject>(PIEWorld), ULevel::StaticClass(), FName("PIELevel"));
+		
+		if (PIELevel)
+		{
+			UE_LOG("DuplicateWorldForPIE: PIE Level created, starting actor duplication...");
+			// PIE Level의 내부 배열에 직접 액터들 추가
+			size_t duplicatedCount = 0;
+			TArray<AActor*>& PIEActorsArray = PIELevel->GetActors();  // 참조로 가져오기
+			
+			for (AActor* EditorActor : EditorLevel->GetActors())
+			{
+				if (EditorActor)
+				{
+					UE_LOG("DuplicateWorldForPIE: Duplicating actor: %s", EditorActor->GetName().ToString().data());
+					// 액터 복제 (얕은 복사 + 서브오브젝트 깊은 복사)
+					AActor* PIEActor = Cast<AActor>(EditorActor->Duplicate());
+					if (PIEActor)
+					{
+						UE_LOG("DuplicateWorldForPIE: Actor duplicated successfully: %s", PIEActor->GetName().ToString().data());
+						// PIE 레벨의 Actors 배열에 직접 추가
+						PIEActorsArray.push_back(PIEActor);
+						// CRITICAL FIX: LevelActors 배열에도 추가 (Init()에서 Actors 배열을 LevelActors로 동기화하기 때문)
+						PIELevel->GetLevelActors().push_back(TObjectPtr<AActor>(PIEActor));
+						duplicatedCount++;
+						UE_LOG("DuplicateWorldForPIE: Added to PIE Level Actors (%zu) and LevelActors (%zu)", PIEActorsArray.size(), PIELevel->GetLevelActors().size());
+					}
+					else
+					{
+						UE_LOG("DuplicateWorldForPIE: Failed to duplicate actor: %s", EditorActor->GetName().ToString().data());
+					}
+				}
+			}
+			
+			UE_LOG("DuplicateWorldForPIE: Duplicated %zu actors successfully", duplicatedCount);
+			PIEWorld->SetLevel(PIELevel);
+			UE_LOG("DuplicateWorldForPIE: PIE Level set to PIE World");
+			
+			// PIE Level 초기화 (렌더링 시스템에 등록)
+			UE_LOG("DuplicateWorldForPIE: Initializing PIE Level...");
+			PIELevel->Init();
+			UE_LOG("DuplicateWorldForPIE: PIE Level initialized successfully");
+		}
+		else
+		{
+			UE_LOG("DuplicateWorldForPIE: Failed to create PIE Level!");
+		}
+	}
+	else
+	{
+		UE_LOG("DuplicateWorldForPIE: Editor World has no level!");
+	}
+
+	UE_LOG("DuplicateWorldForPIE: Returning PIE World: %s", PIEWorld ? PIEWorld->GetName().ToString().data() : "null");
+	return PIEWorld;
 }
 
 void UWorld::InitializeActorsForPlay()

@@ -21,6 +21,8 @@ namespace EEndPlayReason
 }
 
 class UBillBoardComponent;
+class UTextRenderComponent;
+
 /**
  * @brief Level에서 렌더링되는 UObject 클래스
  * UWorld로부터 업데이트 함수가 호출되면 component들을 순회하며 위치, 애니메이션, 상태 처리
@@ -52,6 +54,13 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason);
 	virtual void Tick(float DeltaTime);
 
+	// Object Duplication Override
+	virtual void DuplicateSubObjects() override;
+	virtual UObject* Duplicate() override;
+	
+	// Component Data Copying
+	void CopyComponentData(AActor* TargetActor);
+
 	// Tick 상태 관리
 	bool IsActorTickEnabled() const { return bActorTickEnabled; }
 	void SetActorTickEnabled(bool bEnabled) { bActorTickEnabled = bEnabled; }
@@ -61,6 +70,8 @@ public:
 	const TArray<TObjectPtr<UActorComponent>>& GetOwnedComponents() const { return OwnedComponents; }
 
 	void SetRootComponent(USceneComponent* InOwnedComponents) { RootComponent = InOwnedComponents; }
+
+	virtual UTextRenderComponent* GetUUIDTextComponent() const { return nullptr; }
 
 	const FVector& GetActorLocation() const;
 	const FVector& GetActorRotation() const;

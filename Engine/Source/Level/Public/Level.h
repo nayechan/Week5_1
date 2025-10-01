@@ -53,12 +53,17 @@ public:
 
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
+	// Object Duplication Override
+	virtual void DuplicateSubObjects() override;
+	virtual UObject* Duplicate() override;
+
 	// PIE/World에서 요구하는 인터페이스
 	const TArray<AActor*>& GetActors() const { return Actors; }
 	TArray<AActor*>& GetActors() { return Actors; }
 
 	// 기존 인터페이스 유지 (호환성)
 	const TArray<TObjectPtr<AActor>>& GetLevelActors() const { return LevelActors; }
+	TArray<TObjectPtr<AActor>>& GetLevelActors() { return LevelActors; }
 
 	const TArray<TObjectPtr<UPrimitiveComponent>>& GetLevelPrimitiveComponents() const
 	{
@@ -66,7 +71,6 @@ public:
 	}
 
 	void AddLevelPrimitiveComponent(AActor* Actor);
-	void AddActorToDynamic(AActor* Actor);
 
 	AActor* SpawnActorToLevel(UClass* InActorClass, const FName& InName = FName::GetNone());
 
@@ -109,6 +113,12 @@ private:
 	 * 이전 Tick에서 마킹된 Actor를 제거한다
 	 */
 	void ProcessPendingDeletions();
+	
+	/**
+	 * @brief Actor를 Init 과정에서 처리하는 헬퍼 함수
+	 * Octree에 삽입하고 LevelPrimitiveComponents에 추가
+	 */
+	void ProcessActorForInit(AActor* Actor);
 
 	// Spatial Index
 	FOctree StaticOctree;

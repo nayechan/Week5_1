@@ -261,6 +261,7 @@
     <ClInclude Include="Source\Component\Mesh\Public\SquareComponent.h" />
     <ClInclude Include="Source\Component\Mesh\Public\TriangleComponent.h" />
     <ClInclude Include="Source\Component\Mesh\Public\VertexDatas.h" />
+    <ClInclude Include="Source\Component\Public\TextRenderComponent.h" />
     <ClInclude Include="Source\Core\Public\Archive.h" />
     <ClInclude Include="Source\Core\Public\ObjectIterator.h" />
     <ClInclude Include="Source\Core\Public\WindowsBinReader.h" />
@@ -434,6 +435,7 @@
     <ClCompile Include="Source\Component\Mesh\Private\SquareComponent.cpp" />
     <ClCompile Include="Source\Component\Mesh\Private\TriangleComponent.cpp" />
     <ClCompile Include="Source\Component\Mesh\Private\VertexDatas.cpp" />
+    <ClCompile Include="Source\Component\Private\TextRenderComponent.cpp" />
     <ClCompile Include="Source\Core\Private\Archive.cpp" />
     <ClCompile Include="Source\Core\Private\ObjectIterator.cpp" />
     <ClCompile Include="Source\Core\Private\WindowsBinWriter.cpp" />

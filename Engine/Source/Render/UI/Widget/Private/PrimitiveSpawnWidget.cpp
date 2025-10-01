@@ -134,9 +134,6 @@ void UPrimitiveSpawnWidget::SpawnActors() const
 			float RandomScale = 0.5f + (static_cast<float>(rand()) / RAND_MAX) * 1.5f;
 			NewActor->SetActorScale3D(FVector(RandomScale, RandomScale, RandomScale));
 
-			// 새로 생성된 액터를 Dynamic 목록에 추가
-			CurrentLevel->AddActorToDynamic(NewActor);
-
 			UE_LOG("ControlPanel: (%.2f, %.2f, %.2f) 지점에 Actor를 배치했습니다", RandomX, RandomY, RandomZ);
 		}
 		else

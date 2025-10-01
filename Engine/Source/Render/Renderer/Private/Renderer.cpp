@@ -26,7 +26,8 @@
 #include "Render/Culling/Public/CullingManager.h"
 #include "Render/Culling/Public/LODManager.h"
 #include "Render/Culling/Public/OcclusionCuller.h"
-#include <immintrin.h> 
+#include <immintrin.h>
+#include "Component/Public/TextRenderComponent.h"
 
 IMPLEMENT_SINGLETON_CLASS_BASE(URenderer)
 
@@ -307,10 +308,11 @@ void URenderer::Update()
 		RenderLevel(ViewportClient);
 
 		// 5. 에디터를 렌더링합니다.
-		// PIE World인 경우 Editor 렌더링 스킵
+		// PIE World인 경우 에디터 오버레이 렌더링 스킵 (그리드, 축, 기즈모 숨김)
 		bool bIsPIEViewport = ViewportClient.RenderTargetWorld && ViewportClient.RenderTargetWorld->IsPIEWorld();
 		if (!bIsPIEViewport)
 		{
+			// 에디터 모드에서만 그리드, 축, 기즈모 렌더링
 			ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
 		}
 	}
@@ -360,7 +362,9 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 	// World 없으면 Early Return
 	if (!TargetWorld)
+	{
 		return;
+	}
 
 	// World로부터 Level 가져오기
 	ULevel* TargetLevel = TargetWorld->GetLevel();
@@ -409,10 +413,11 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	// 렌더링 콜백 함수
 	auto RenderCallback = [&renderedPrimitiveCount, &lodCounts, &InCurrentCamera, ViewMode, this](UPrimitiveComponent* primitive, const void* context) -> void
 	{
-		if (!primitive) return;
+		if (!primitive) {
+			return;
+		}
 		if (!primitive->IsVisible())
 		{
-			UE_LOG("Renderer: Primitive %p not visible, skipping render", primitive);
 			return;
 		}
 
@@ -443,14 +448,11 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
-		case EPrimitiveType::StaticMesh:
-        {
-            UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-            if (MeshComponent)
-            {
-                UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-                if (MeshComponent)
-                {
+			case EPrimitiveType::StaticMesh:
+			{
+				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+				if (MeshComponent)
+				{
 					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
 					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
 
@@ -470,15 +472,14 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 						break;
 					}
 					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-                    if (LodIndex >= 0 && LodIndex < 3)
-                    {
-                        lodCounts[LodIndex]++;
-                    }
-                }
-            }
-			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-			break;
-        }
+					if (LodIndex >= 0 && LodIndex < 3)
+					{
+						lodCounts[LodIndex]++;
+					}
+				}
+				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+				break;
+			}
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -488,10 +489,9 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
-		// 옥트리에서 람다 기반 렌더링 수행 (Static Primitives)
+		// 옵트리에서 람다 기반 렌더링 수행 (Static Primitives)
 		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
 	}
-
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
@@ -725,6 +725,20 @@ void URenderer::RenderBillboard(UBillBoardComponent* InBillBoardComp, UCamera* I
 	// UEditor에서 가져오는 대신, 인자로 받은 카메라의 ViewProj 행렬을 사용
 	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
 	FontRenderer->RenderText(UUIDString.c_str(), RT, viewProjConstData);
+}
+
+void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCurrentCamera)
+{
+	if (!InCurrentCamera)
+	{
+		return;
+	}
+
+	FMatrix RT;
+	// TODO: FMatrix RT = InTextRenderComp->GetRTMatrix();
+
+	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
+	FontRenderer->RenderText(InTextRenderComp->GetText().c_str(), RT, viewProjConstData);
 }
 
 void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3D11RasterizerState* InRasterizerState)

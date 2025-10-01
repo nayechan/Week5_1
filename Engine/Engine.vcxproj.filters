@@ -389,6 +389,12 @@
     <ClCompile Include="Source\Utility\Private\StaticMeshSerializer.cpp">
       <Filter>Source\Core\Private</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Component\Private\BillboardControllerComponent.cpp">
+      <Filter>Source\Component\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Component\Private\TextRenderComponent.cpp">
+      <Filter>Source\Component\Private</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -814,6 +820,12 @@
     </ClInclude>
     <ClInclude Include="Source\Utility\Public\StaticMeshSerializer.h">
       <Filter>Source\Core\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\Public\BillboardControllerComponent.h">
+      <Filter>Source\Component\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Component\Public\TextRenderComponent.h">
+      <Filter>Source\Component\Public</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

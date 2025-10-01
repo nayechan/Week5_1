@@ -65,14 +65,17 @@ void USceneComponent::SetParentAttachment(USceneComponent* NewParent)
 
 	// 새로운 부모를 설정합니다.
 	ParentAttachment = NewParent;
-
-	// [추가] 새로운 부모가 있다면, 그 부모의 자식 목록에 나를 추가합니다.
 	if (ParentAttachment)
 	{
-		ParentAttachment->Children.push_back(this);
+		ParentAttachment->AddChild(this);
 	}
 
 	MarkAsDirty();
+}
+
+void USceneComponent::AddChild(USceneComponent* NewChild)
+{
+	Children.push_back(NewChild);
 }
 
 void USceneComponent::RemoveChild(USceneComponent* ChildDeleted)
@@ -175,10 +178,6 @@ void USceneComponent::UpdateWorldTransform()
 {
 	if (!bIsTransformDirty)
 	{
-		for (USceneComponent* Child : Children)
-		{
-			Child->UpdateWorldTransform();
-		}
 		return;
 	}
 

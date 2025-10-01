@@ -138,6 +138,7 @@ enum class EPrimitiveType : uint8
 	Ring,
 	Line,
 	BillBoard,
+	TextRender,
 
 	End = 0xFF
 };
