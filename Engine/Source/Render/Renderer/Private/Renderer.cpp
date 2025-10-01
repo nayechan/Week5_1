@@ -453,21 +453,82 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		switch (primitive->GetPrimitiveType())
 		{
 		case EPrimitiveType::StaticMesh:
+		{
+			UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+			if (MeshComponent)
 			{
-				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-				if (MeshComponent)
+				// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
+				int32 LodIndex = MeshComponent->GetCurrentLODIndex();
+				if (LodIndex >= 0 && LodIndex < 3)
 				{
-					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
-					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
-					if (LodIndex >= 0 && LodIndex < 3)
-					{
-						lodCounts[LodIndex]++;
-					}
-                }
-                RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-			    break;
+					lodCounts[LodIndex]++;
+				}
             }
+            RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+			break;
         }
+		case EPrimitiveType::Billboard:
+		{
+			UBillboardComponent* BillboardComp = Cast<UBillboardComponent>(primitive);
+			if (BillboardComp)
+			{
+				// Make the component face camera (already in your code)
+				BillboardComp->UpdateFacingCamera(InCurrentCamera, false);
+
+				// Get sprite texture
+				UTexture* SpriteTex = BillboardComp->GetSprite();
+				if (!SpriteTex) break;
+
+				const FTextureRenderProxy* Proxy = SpriteTex->GetRenderProxy();
+				if (!Proxy) break;
+
+				// Prepare pipeline for textured quad
+				FPipelineInfo PipelineInfo = {
+					TextureInputLayout,
+					TextureVertexShader,
+					LoadedRasterizerState,
+					DefaultDepthStencilState,
+					TexturePixelShader,
+					nullptr,
+				};
+				Pipeline->UpdatePipeline(PipelineInfo);
+
+				// World matrix: use component world transform (respects attachment)
+				const FMatrix WorldMatrix = BillboardComp->GetWorldTransform();
+				Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
+				UpdateConstant(WorldMatrix); // sets b0.world for TextureShader.hlsl
+
+				// Bind texture and sampler (TextureShader expects DiffuseTexture at t0)
+				Pipeline->SetTexture(0, false, Proxy->GetSRV());
+				Pipeline->SetSamplerState(0, false, Proxy->GetSampler());
+
+				// Create a unit quad centered at origin (two triangles). Local plane Z=0.
+				// Vertex format: Position(float3), Normal(float3), Color(float4), TexCoord(float2)
+				FNormalVertex QuadVerts[6] = {
+					// tri 1
+					{ { -0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 1.0f} },
+					{ {  0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 1.0f} },
+					{ {  0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 0.0f} },
+					// tri 2
+					{ {  0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {1.0f, 0.0f} },
+					{ { -0.5f,  0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 0.0f} },
+					{ { -0.5f, -0.5f, 0.0f }, {0.0f,0.0f,1.0f}, {1,1,1,1}, {0.0f, 1.0f} },
+				};
+
+				// Create a transient vertex buffer for the quad
+				ID3D11Buffer* VB = BillboardComp->GetVertexBuffer();
+				if (VB)
+				{
+					// Bind and draw (triangle list, 6 verts)
+					Pipeline->SetVertexBuffer(VB, sizeof(FNormalVertex));
+					Pipeline->Draw(6, 0);
+
+					// cleanup transient buffer
+					// ReleaseVertexBuffer(VB);
+				}
+			}
+			break;
+		}
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -483,9 +544,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	// Dynamic Primitives 처리
 	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	
-	// PIE 모드에서 동적 프리미티브 디버그 로그
-
-	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	uint32 dynamicRenderedCount = 0;
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{

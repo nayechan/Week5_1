@@ -36,7 +36,8 @@ UPrimitiveComponent* UObjectPicker::PickPrimitive(UCamera* InActiveCamera, const
 		/*if (Primitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 		{
 			continue;
-		FMatrix ModelMat = Primitive->GetWorldTransformMatrix();
+		}*/ 
+		FMatrix ModelMat = Primitive->GetWorldTransform();
 		FRay ModelRay = GetModelRay(WorldRay, Primitive);
 		if (IsRayPrimitiveCollided(InActiveCamera, ModelRay, Primitive, ModelMat, &PrimitiveDistance))
 			//Ray와 Primitive가 충돌했다면 거리 테스트 후 가까운 Actor Picking
@@ -346,7 +347,7 @@ bool UObjectPicker::IsRayTriangleCollided(UCamera* InActiveCamera, const FRay& R
 	if (abs(Determinant) <= NoInverse) return false;
 
 	// Back-face culling
-	if (Determinant >= 0.0f) return false;
+	//if (Determinant >= 0.0f) return false;
 
 	float V = Result.Dot(CrossE2Ray) / Determinant;
 	if (V < 0 || V > 1) return false;

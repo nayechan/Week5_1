@@ -239,7 +239,7 @@ AActor* ULevel::SpawnActorToLevel(UClass* InActorClass, const FName& InName)
 				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComp));
 
 				// 빌보드 컴포넌트가 아니면 DynamicPrimitives에도 추가 (렌더링용)
-				if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::BillBoard)
+				if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::Billboard)
 				{
 					DynamicPrimitives.push_back(TObjectPtr(PrimitiveComp));
 				}
@@ -290,23 +290,31 @@ void ULevel::AddLevelPrimitiveComponent(AActor* Actor)
 		// 빌보드는 무조건 피킹이 된 actor의 빌보드여야 렌더링 가능
 		if (PrimitiveComponent->IsVisible() && (ShowFlags & EEngineShowFlags::SF_Primitives))
 		{
-				LevelPrimitiveComponents.push_back(PrimitiveComponent);
-				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));
-				UE_LOG("  -> Added to BVH: %s (Owner: %s)",
-					   PrimitiveComponent->GetName().ToString().c_str(),
-					   PrimitiveComponent->GetOwner() ? PrimitiveComponent->GetOwner()->GetName().ToString().c_str() : "None");
-		}
-
-			UE_LOG("  -> Skipping invisible or filtered component: %s (Visible: %d, ShowFlags: %llu)",
-				   PrimitiveComponent->GetName().ToString().c_str(),
-				   PrimitiveComponent->IsVisible(),
-				   ShowFlags);
+				LevelPrimitiveComponents.push_back(TObjectPtr(PrimitiveComponent));			
 		}
 	}
-
-	UE_LOG("Level::AddLevelPrimitiveComponent completed\n");
 }
+void ULevel::AddActorToDynamic(AActor* Actor)
+{
+	if (!Actor) return;
 
+	for (auto& Component : Actor->GetOwnedComponents())
+	{
+		if (Component->GetComponentType() >= EComponentType::Primitive)
+		{
+			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
+			if (!PrimitiveComponent) continue;
+
+			// 빌보드 컴포넌트는 추가하지 않음
+			/*if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard)
+				continue;*/
+
+				// 런타임에 생성된 오브젝트는 DynamicPrimitives에 추가
+				// 나중에 필요시 MoveToDynamic/MoveToStatic으로 이동 가능
+			DynamicPrimitives.push_back(TObjectPtr(PrimitiveComponent));
+		}
+	}
+}
 
 void ULevel::SetSelectedActor(AActor* InActor)
 {
@@ -460,7 +468,7 @@ void ULevel::ProcessActorForInit(AActor* Actor)
 			LevelPrimitiveComponents.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComponent));
 
 			// 빌보드 컴포넌트는 Octree에 삽입하지 않음
-			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::BillBoard)
+			if (PrimitiveComponent->GetPrimitiveType() == EPrimitiveType::Billboard)
 			{
 				UE_LOG("    -> Skipping Billboard component for Octree");
 				continue;
@@ -577,7 +585,7 @@ void ULevel::DuplicateSubObjects()
 				if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(Component))
 				{
 					// Billboard가 아닌 모든 primitive component를 DynamicPrimitives에 추가
-					if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::BillBoard)
+					if (PrimitiveComp->GetPrimitiveType() != EPrimitiveType::Billboard)
 					{
 						DynamicPrimitives.push_back(TObjectPtr<UPrimitiveComponent>(PrimitiveComp));
 						UE_LOG("    -> Added to DynamicPrimitives: %s (Owner: %s, Type: %d, Visible: %s)", 
@@ -636,7 +644,7 @@ void ULevel::RegisterPrimitiveComponent(UPrimitiveComponent* NewPrimitive)
 		   NewPrimitive->GetOwner() ? NewPrimitive->GetOwner()->GetName().ToString().c_str() : "None");
 
 	// 빌보드 컴포넌트는 렌더링 목록에 직접 추가하지 않습니다.
-	if (NewPrimitive->GetPrimitiveType() == EPrimitiveType::BillBoard)
+	if (NewPrimitive->GetPrimitiveType() == EPrimitiveType::Billboard)
 	{
 		UE_LOG("  -> Skipping Billboard component");
 		return;
