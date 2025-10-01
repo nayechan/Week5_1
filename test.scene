@@ -1,0 +1,19 @@
+{
+  "NextUUID" : 0,
+  "PerspectiveCamera" : {
+    "FOV" : [60.000000],
+    "FarClip" : [100.000000],
+    "Location" : [-13.707925, -8.878432, 7.284504],
+    "NearClip" : [0.100000],
+    "Rotation" : [0.000000, 36.976276, 46.869953]
+  },
+  "Primitives" : {
+    "150099" : {
+      "Location" : [-2.788476, 1.570177, -5.233009],
+      "ObjStaticMeshAsset" : "Data/Cube/Cube.obj",
+      "Rotation" : [0.000000, 0.000000, 0.000000],
+      "Scale" : [0.949904, 0.949904, 0.949904],
+      "Type" : "StaticMeshComp"
+    }
+  }
+}

@@ -35,6 +35,7 @@ public:
 
 	const FMatrix& GetWorldTransform() const;
 	const FMatrix& GetWorldTransformInverse() const;
+	void UpdateWorldTransform();
 
 private:
 	mutable bool bIsTransformDirty = true;
