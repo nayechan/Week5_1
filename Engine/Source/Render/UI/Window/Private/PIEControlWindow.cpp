@@ -8,7 +8,7 @@ UPIEControlWindow::UPIEControlWindow()
 	{
 		FUIWindowConfig Config;
 		Config.WindowTitle = "PIE Control";
-		Config.DefaultSize = ImVec2(256, 64);
+		Config.DefaultSize = ImVec2(160, 60);
 		Config.DefaultPosition = ImVec2(1600, 200);
 		Config.DockDirection = EUIDockDirection::None;
 		//Config.Priority = 999;

@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <vector>
 #include <functional>
+#include <memory>
 
 template<typename T, typename Alloc = std::allocator<T>>
 using TArray = std::vector<T, Alloc>;
@@ -36,6 +37,12 @@ template<typename T>
 using TOptional = std::optional<T>;
 template<typename T>
 using TFunction = std::function<T>;
+template<typename T>
+using TUniquePtr = std::unique_ptr<T>;
+template<typename T>
+using TSharedPtr = std::shared_ptr<T>;
+template<typename T>
+using TWeakPtr = std::weak_ptr<T>;
 
 using FString = std::string;
 using uint8 = std::uint8_t;

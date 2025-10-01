@@ -217,7 +217,7 @@ bool UOcclusionCuller::IsOccluded(const FVector& worldMin, const FVector& worldM
 	float distanceToAABB = (cameraPos - closestPoint).Length();
 
 	// 카메라가 AABB 내부에 있거나 10.0f 거리 이내의 물체는 컬링하지 않음
-	if (distanceToAABB < 10.0f)
+	if (distanceToAABB < 15.0f)
 	{
 		return false;
 	}

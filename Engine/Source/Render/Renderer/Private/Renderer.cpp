@@ -302,7 +302,7 @@ void URenderer::Update()
 		UpdateConstant(CurrentCamera->GetFViewProjConstants());
 
 		// 4. 씬(레벨, 에디터 요소 등)을 이 뷰포트와 카메라 기준으로 렌더링합니다.
-		RenderLevel(CurrentCamera);
+		RenderLevel(ViewportClient);
 
 		// 5. 에디터를 렌더링합니다.
 		ULevelManager::GetInstance().GetEditor()->RenderEditor(CurrentCamera);
@@ -344,19 +344,24 @@ void URenderer::RenderBegin() const
 /**
  * @brief Buffer에 데이터 입력 및 Draw
  */
-void URenderer::RenderLevel(UCamera* InCurrentCamera)
+void URenderer::RenderLevel(FViewportClient& InViewport)
 {
+	// Viewport가 렌더링할 Level 결정: RenderTargetLevel이 있으면 사용, 없으면 CurrentLevel 사용
+	ULevel* TargetLevel = InViewport.RenderTargetLevel
+		? InViewport.RenderTargetLevel
+		: ULevelManager::GetInstance().GetCurrentLevel();
 
-    // Level 없으면 Early Return
-    ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
-    if (!CurrentLevel)
-        return;
+	// Level 없으면 Early Return
+	if (!TargetLevel)
+		return;
 
 	// 통계 초기화
-	uint32 totalStaticPrimitives = CurrentLevel->GetStaticOctree().GetObjectCount();
-	uint32 totalDynamicPrimitives = CurrentLevel->GetDynamicPrimitives().size();
-    uint32 lodCounts[3] = { 0 };
+	uint32 totalStaticPrimitives = TargetLevel->GetStaticOctree().GetObjectCount();
+	uint32 totalDynamicPrimitives = TargetLevel->GetDynamicPrimitives().size();
+	uint32 lodCounts[3] = { 0 };
 
+	// Viewport의 Camera 사용
+	UCamera* InCurrentCamera = &InViewport.Camera;
 
 	// Frustum Culling Test
 	FFrustum ViewFrustum = InCurrentCamera->GetViewFrustum();
@@ -472,11 +477,11 @@ void URenderer::RenderLevel(UCamera* InCurrentCamera)
 	{
 		FScopeCycleCounter Counter(GetCullingStatId());
 		// 옥트리에서 람다 기반 렌더링 수행 (Static Primitives)
-		CurrentLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
+		TargetLevel->GetStaticOctree().QueryFrustumWithRenderCallback(ViewFrustum, IsOccludedCallback, &Context, RenderCallback, nullptr);
 	}
 
 	// Dynamic Primitives 처리
-	const auto& DynamicPrimitives = CurrentLevel->GetDynamicPrimitives();
+	const auto& DynamicPrimitives = TargetLevel->GetDynamicPrimitives();
 	for (UPrimitiveComponent* DynPrim : DynamicPrimitives)
 	{
 		if (!DynPrim)

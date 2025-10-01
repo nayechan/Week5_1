@@ -1,6 +1,8 @@
 #pragma once
 #include "Editor/Public/Camera.h"
 
+class ULevel;
+
 // 뷰포트의 카메라 모드를 정의하는 열거형
 enum class EViewportCameraType : uint8_t
 {
@@ -84,5 +86,9 @@ public:
 	bool bIsActive = false;
 	bool bIsVisible = true;  // 뷰포트 표시 여부 (기본값: 표시)
 	EViewportCameraType CameraType = EViewportCameraType::Perspective;
+
+	// PIE System: 이 뷰포트가 렌더링할 Level (nullptr이면 CurrentLevel 사용)
+	// TODO: World 구조로 변경 시 UWorld*로 교체
+	ULevel* RenderTargetLevel = nullptr;
 };
 

@@ -61,7 +61,15 @@ UEditor::UEditor()
 
 UEditor::~UEditor()
 {
-	UConfigManager::GetInstance().SetSplitterRatio(RootSplitter.GetRatio(), LeftSplitter.GetRatio(), RightSplitter.GetRatio());
+	// 전체화면 모드인 경우 백업된 4분할 비율을 저장, 아니면 현재 비율 저장
+	if (ViewportLayoutState == EViewportLayoutState::Single)
+	{
+		UConfigManager::GetInstance().SetSplitterRatio(SavedRootRatio, SavedLeftRatio, SavedRightRatio);
+	}
+	else
+	{
+		UConfigManager::GetInstance().SetSplitterRatio(RootSplitter.GetRatio(), LeftSplitter.GetRatio(), RightSplitter.GetRatio());
+	}
 	SafeDelete(DraggedSplitter);
 	SafeDelete(InteractionViewport);
 }
