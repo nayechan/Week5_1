@@ -2,6 +2,8 @@
 #include "Actor/Public/Actor.h"
 #include "Component/Public/SceneComponent.h"
 #include "Component/Public/BillBoardComponent.h"
+#include "Manager/Level/Public/LevelManager.h"
+#include "Level/Public/Level.h"
 
 IMPLEMENT_CLASS(AActor, UObject)
 
@@ -94,6 +96,37 @@ const FVector& AActor::GetActorScale3D() const
 {
 	assert(RootComponent);
 	return RootComponent->GetRelativeScale3D();
+}
+
+UActorComponent* AActor::AddComponentByClass(UClass* ComponentClass, const FName& ComponentName)
+{
+	if (!ComponentClass)
+	{
+		return nullptr;
+	}
+
+	TObjectPtr<UClass> ComponentClassPtr(ComponentClass);
+	TObjectPtr<UActorComponent> NewComponent = NewObject<UActorComponent>(TObjectPtr<UObject>(this),
+		ComponentClassPtr, ComponentName);
+
+	if (NewComponent)
+	{
+		// 액터를 컴포넌트의 소유자로 설정하고, 소유 목록에 추가
+		NewComponent->SetOwner(this);
+		OwnedComponents.push_back(NewComponent);
+
+		// PrimitiveComponent 타입이라면, 레벨의 렌더링 목록에 등록
+		if (UPrimitiveComponent* NewPrimitive = Cast<UPrimitiveComponent>(NewComponent.Get()))
+		{
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)
+			{
+				CurrentLevel->RegisterPrimitiveComponent(NewPrimitive);
+			}
+		}
+	}
+
+	return NewComponent.Get();
 }
 
 void AActor::Tick(float DeltaTime)

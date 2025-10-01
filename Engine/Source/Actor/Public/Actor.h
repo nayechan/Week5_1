@@ -66,6 +66,8 @@ public:
 	const FVector& GetActorRotation() const;
 	const FVector& GetActorScale3D() const;
 
+	UActorComponent* AddComponentByClass(UClass* ComponentClass, const FName& ComponentName);
+
 	template<class T>
 	T* CreateDefaultSubobject(const FName& InName)
 	{

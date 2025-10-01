@@ -178,7 +178,7 @@ void UActorDetailWidget::RenderComponentTree(AActor* InSelectedActor)
 			if (ImGui::Selectable(Class->GetClassTypeName().ToString().data()))
 			{
 				FString NewComponentName = "New" + Class->GetClassTypeName().ToString();
-				UActorComponent* NewComponent = NewObject<UActorComponent>(TObjectPtr<UObject>(InSelectedActor), Class, FName(NewComponentName));
+				UActorComponent* NewComponent = InSelectedActor->AddComponentByClass(Class, FName(NewComponentName));
 
 				if (NewComponent)
 				{
@@ -221,50 +221,6 @@ void UActorDetailWidget::RenderComponentTree(AActor* InSelectedActor)
  * 내부적으로 RTTI를 활용한 GetName 처리가 되어 있음
  * @param InComponent
  */
-/*void UActorDetailWidget::RenderComponentNode(UActorComponent* InComponent)
-{
-	if (!InComponent)
-	{
-		return;
-	}
-
-	// 컴포넌트 타입에 따른 아이콘
-	FName ComponentTypeName = InComponent->GetClass()->GetClassTypeName();
-	FString ComponentIcon = "[C]"; // 기본 컴포넌트 아이콘
-
-	if (Cast<UPrimitiveComponent>(InComponent))
-	{
-		ComponentIcon = "[P]"; // PrimitiveComponent 아이콘
-	}
-	else if (Cast<USceneComponent>(InComponent))
-	{
-		ComponentIcon = "[S]"; // SceneComponent 아이콘
-	}
-
-	// 트리 노드 생성
-	ImGuiTreeNodeFlags NodeFlags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-
-	FString NodeLabel = ComponentIcon + " " + InComponent->GetName().ToString();
-	ImGui::TreeNodeEx(NodeLabel.data(), NodeFlags);
-
-	// 컴포넌트 세부 정보를 추가로 표시할 수 있음
-	if (ImGui::IsItemHovered())
-	{
-		// 컴포넌트 타입 정보를 툴팁으로 표시
-		ImGui::SetTooltip("Component Type: %s", ComponentTypeName.ToString().data());
-	}
-
-	// PrimitiveComponent인 경우 추가 정보
-	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InComponent))
-	{
-		ImGui::SameLine();
-		ImGui::TextColored(
-			PrimitiveComponent->IsVisible() ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
-			PrimitiveComponent->IsVisible() ? "[Visible]" : "[Hidden]"
-		);
-	}
-}*/
-
 void UActorDetailWidget::RenderComponentNode(USceneComponent* InComponent)
 {
 	ImGui::PushID(InComponent);
