@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Component/Public/ActorComponent.h"
+#include "Actor/Public/Actor.h"
 
 IMPLEMENT_CLASS(UActorComponent, UObject)
 
@@ -18,14 +19,14 @@ void UActorComponent::BeginPlay()
 
 }
 
-void UActorComponent::TickComponent()
+void UActorComponent::TickComponent(float DeltaTime)
 {
-
+	// 기본 구현은 비어있음
 }
 
-void UActorComponent::EndPlay()
+void UActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-
+	// 기본 구현은 비어있음
 }
 
 /**
