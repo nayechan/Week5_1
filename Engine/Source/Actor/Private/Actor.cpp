@@ -2,6 +2,8 @@
 #include "Actor/Public/Actor.h"
 #include "Component/Public/SceneComponent.h"
 #include "Component/Mesh/Public/StaticMeshComponent.h"
+#include "Manager/Level/Public/LevelManager.h"
+#include "Level/Public/Level.h"
 
 IMPLEMENT_CLASS(AActor, UObject)
 
@@ -90,6 +92,91 @@ const FVector& AActor::GetActorScale3D() const
 {
 	assert(RootComponent);
 	return RootComponent->GetRelativeScale3D();
+}
+
+UActorComponent* AActor::AddComponentByClass(UClass* ComponentClass, const FName& ComponentName)
+{
+	if (!ComponentClass)
+	{
+		return nullptr;
+	}
+
+	TObjectPtr<UClass> ComponentClassPtr(ComponentClass);
+	TObjectPtr<UActorComponent> NewComponent = NewObject<UActorComponent>(TObjectPtr<UObject>(this),
+		ComponentClassPtr, ComponentName);
+
+	if (NewComponent)
+	{
+		// 액터를 컴포넌트의 소유자로 설정하고, 소유 목록에 추가
+		NewComponent->SetOwner(this);
+		OwnedComponents.push_back(NewComponent);
+
+		// PrimitiveComponent 타입이라면, 레벨의 렌더링 목록에 등록
+		if (UPrimitiveComponent* NewPrimitive = Cast<UPrimitiveComponent>(NewComponent.Get()))
+		{
+			ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+			if (CurrentLevel)
+			{
+				CurrentLevel->RegisterPrimitiveComponent(NewPrimitive);
+			}
+		}
+	}
+
+	return NewComponent.Get();
+}
+
+// Helper function to recursively collect scene component children
+static void CollectSceneComponentChildren(USceneComponent* SceneComp, TArray<UActorComponent*>& OutComponents, int depth = 0)
+{
+	if (!SceneComp) return;
+
+	// Add all direct children
+	for (USceneComponent* Child : SceneComp->GetAttachChildren())
+	{
+		if (Child)
+		{
+			OutComponents.push_back(Child);
+
+			FString indent(depth * 2, ' ');
+			UE_LOG("%s  -> Child component: %s (depth=%d, Owner=%s)",
+				   indent.c_str(), Child->GetName().ToString().c_str(), depth,
+				   Child->GetOwner() ? Child->GetOwner()->GetName().ToString().c_str() : "None");
+
+			// Recursively collect children of children
+			CollectSceneComponentChildren(Child, OutComponents, depth + 1);
+		}
+	}
+}
+
+TArray<UActorComponent*> AActor::GetAllComponents() const
+{
+	TArray<UActorComponent*> AllComponents;
+
+	UE_LOG("Actor::GetAllComponents for %s (OwnedComponents count: %d):",
+		   GetName().ToString().c_str(), OwnedComponents.size());
+
+	// Collect all directly owned components
+	for (const auto& Component : OwnedComponents)
+	{
+		if (Component)
+		{
+			AllComponents.push_back(Component.Get());
+
+			UE_LOG("  Owned component: %s (Type: %d)",
+				   Component->GetName().ToString().c_str(),
+				   static_cast<int>(Component->GetComponentType()));
+
+			// If this is a SceneComponent, recursively collect its entire hierarchy
+			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component.Get()))
+			{
+				CollectSceneComponentChildren(SceneComp, AllComponents, 1);
+			}
+		}
+	}
+
+	UE_LOG("  Total components collected: %d", AllComponents.size());
+
+	return AllComponents;
 }
 
 void AActor::Tick(float DeltaTime)

@@ -2,11 +2,14 @@
 #include "Render/UI/Widget/Public/ActorDetailWidget.h"
 
 #include "Manager/Level/Public/LevelManager.h"
+#include "Manager/UI/Public/UIManager.h"
 #include "Level/Public/Level.h"
 #include "Actor/Public/Actor.h"
 #include "Component/Public/ActorComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Component/Public/SceneComponent.h"
+
+TArray<TObjectPtr<UClass>> UActorDetailWidget::CreatableComponentClasses;
 
 UActorDetailWidget::UActorDetailWidget()
 	: UWidget("Actor Detail Widget")
@@ -103,27 +106,113 @@ void UActorDetailWidget::RenderActorHeader(TObjectPtr<AActor> InSelectedActor)
  * @brief 컴포넌트들을 트리 형태로 표시하는 함수
  * @param InSelectedActor 선택된 Actor
  */
-void UActorDetailWidget::RenderComponentTree(TObjectPtr<AActor> InSelectedActor)
+void UActorDetailWidget::RenderComponentTree(AActor* InSelectedActor)
 {
 	if (!InSelectedActor) return;
 
-	const TArray<TObjectPtr<UActorComponent>>& Components = InSelectedActor->GetOwnedComponents();
-
-	ImGui::Text("Components (%d)", static_cast<int>(Components.size()));
+	ImGui::Text("Components");
 	ImGui::Separator();
 
-	if (Components.empty())
+	const TArray<TObjectPtr<UActorComponent>>& AllComponents = InSelectedActor->GetOwnedComponents();
+
+	if (AllComponents.empty())
 	{
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "No components");
 		return;
 	}
 
-	for (int32 i = 0; i < static_cast<int32>(Components.size()); ++i)
+	if (USceneComponent* RootComponent = InSelectedActor->GetRootComponent())
 	{
-		if (Components[i])
+		RenderComponentNode(RootComponent);
+	}
+	for (const auto& Component : AllComponents)
+	{
+		if (Component && !Cast<USceneComponent>(Component))
 		{
-			RenderComponentNode(Components[i]);
+			RenderNonSceneComponentNode(Component);
 		}
+	}
+
+	ImGui::Separator();
+	if (ImGui::Button("[+] Add Component", ImVec2(-1, 0)))
+	{
+		ImGui::OpenPopup("AddComponentPopup");
+	}
+	if (ImGui::BeginPopup("AddComponentPopup"))
+	{
+		// --- 팝업창 내부 UI ---
+		ImGui::Text("Available Components");
+		ImGui::Separator();
+
+		if (CreatableComponentClasses.empty())
+		{
+			TArray<TObjectPtr<UClass>> AllSubclasses = UClass::GetSubclassesOf(UActorComponent::StaticClass());
+			for (const auto& Subclass : AllSubclasses)
+			{
+				// 생성할 수 없는 클래스(추상 클래스 등)는 제외합니다.
+				if (Subclass->CreateDefaultObject() != nullptr)
+				{
+					CreatableComponentClasses.push_back(Subclass);
+				}
+			}
+
+			// 이름순으로 정렬하여 일관된 순서를 보장합니다.
+			std::sort(CreatableComponentClasses.begin(), CreatableComponentClasses.end(),
+			    [](const TObjectPtr<UClass>& A, const TObjectPtr<UClass>& B)
+			    {
+				    return A->GetClassTypeName().ToString() < B->GetClassTypeName().ToString();
+			    });
+
+			// 정렬된 목록에서 중복된 클래스를 제거합니다.
+			CreatableComponentClasses.erase(std::unique(CreatableComponentClasses.begin(), CreatableComponentClasses.end(),
+				[](const TObjectPtr<UClass>& A, const TObjectPtr<UClass>& B)
+				{
+					// 클래스 이름이 같으면 중복으로 간주합니다.
+					return A->GetClassTypeName() == B->GetClassTypeName();
+				}),
+				CreatableComponentClasses.end());
+		}
+
+		for (const auto& Class : CreatableComponentClasses)
+		{
+			if (ImGui::Selectable(Class->GetClassTypeName().ToString().data()))
+			{
+				FString NewComponentName = "New" + Class->GetClassTypeName().ToString();
+				UActorComponent* NewComponent = InSelectedActor->AddComponentByClass(Class, FName(NewComponentName));
+
+				if (NewComponent)
+				{
+					if (USceneComponent* NewSceneComponent = Cast<USceneComponent>(NewComponent))
+					{
+						USceneComponent* ParentToAttach = nullptr;
+
+						// 1. 현재 선택된 컴포넌트가 있는지, 그리고 SceneComponent인지 확인
+						TObjectPtr<UObject> SelectedComponent = UUIManager::GetInstance().GetSelectedObject();
+						if (USceneComponent* SelectedSceneComp = Cast<USceneComponent>(SelectedComponent.Get()))
+						{
+							ParentToAttach = SelectedSceneComp; // 있다면 선택된 컴포넌트에 붙임
+						}
+						else
+						{
+							ParentToAttach = InSelectedActor->GetRootComponent(); // 없다면 루트에 붙임
+						}
+
+						if (ParentToAttach)
+						{
+							NewSceneComponent->SetParentAttachment(ParentToAttach);
+							this->NodeToOpenNextFrame = ParentToAttach;
+						}
+						else
+						{
+							// 루트도 없는 경우, 이 컴포넌트를 새로운 루트로 설정
+							InSelectedActor->SetRootComponent(NewSceneComponent);
+						}
+					}
+				}
+				ImGui::CloseCurrentPopup();
+			}
+		}
+		ImGui::EndPopup();
 	}
 }
 
@@ -132,48 +221,87 @@ void UActorDetailWidget::RenderComponentTree(TObjectPtr<AActor> InSelectedActor)
  * 내부적으로 RTTI를 활용한 GetName 처리가 되어 있음
  * @param InComponent
  */
-void UActorDetailWidget::RenderComponentNode(TObjectPtr<UActorComponent> InComponent)
+void UActorDetailWidget::RenderComponentNode(USceneComponent* InComponent)
 {
-	if (!InComponent)
+	ImGui::PushID(InComponent);
+	if (!InComponent) return;
+
+	if (this->NodeToOpenNextFrame.Get() == InComponent)
 	{
-		return;
+		ImGui::SetNextItemOpen(true);
+		this->NodeToOpenNextFrame = nullptr;
+	}
+	const auto& Children = InComponent->GetAttachChildren();
+
+	ImGuiTreeNodeFlags NodeFlags = ImGuiTreeNodeFlags_OpenOnArrow;
+	if (Children.empty())
+	{
+		NodeFlags |= ImGuiTreeNodeFlags_Leaf;
+	}
+	const bool bIsSelected = (UUIManager::GetInstance().GetSelectedObject() == InComponent);
+	if (bIsSelected)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
 	}
 
-	// 컴포넌트 타입에 따른 아이콘
-	FName ComponentTypeName = InComponent.Get()->GetClass()->GetClassTypeName();
-	FString ComponentIcon = "[C]"; // 기본 컴포넌트 아이콘
+	FString NodeLabel = "[S] " + InComponent->GetName().ToString();
+	bool bNodeOpen = ImGui::TreeNodeEx(NodeLabel.data(), NodeFlags);
 
-	if (Cast<UPrimitiveComponent>(InComponent))
+	// [수정] PushStyleColor를 호출했다면, 반드시 PopStyleColor를 호출해서 스택을 정리해야 합니다.
+	if (bIsSelected)
 	{
-		ComponentIcon = "[P]"; // PrimitiveComponent 아이콘
-	}
-	else if (Cast<USceneComponent>(InComponent))
-	{
-		ComponentIcon = "[S]"; // SceneComponent 아이콘
+		ImGui::PopStyleColor();
 	}
 
-	// 트리 노드 생성
+	if (ImGui::IsItemClicked())
+	{
+		UUIManager::GetInstance().SetSelectedObject(TObjectPtr<UObject>(InComponent));
+	}
+
+	if (bNodeOpen)
+	{
+		if (!Children.empty())
+		{
+			for (const auto& ChildComponent : Children)
+			{
+				RenderComponentNode(ChildComponent);
+			}
+		}
+		ImGui::TreePop();
+	}
+	ImGui::PopID();
+}
+
+/**
+ * @brief SceneComponent가 아닌 컴포넌트를 그리는 함수
+ * @param InComponent
+ */
+void UActorDetailWidget::RenderNonSceneComponentNode(UActorComponent* InComponent)
+{
+	ImGui::PushID(InComponent);
+	if (!InComponent) return;
+
 	ImGuiTreeNodeFlags NodeFlags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
-	FString NodeLabel = ComponentIcon + " " + InComponent->GetName().ToString();
+	const bool bIsSelected = (UUIManager::GetInstance().GetSelectedObject() == InComponent);
+	if (bIsSelected)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+	}
+
+	FString NodeLabel = "[C] " + InComponent->GetName().ToString();
 	ImGui::TreeNodeEx(NodeLabel.data(), NodeFlags);
 
-	// 컴포넌트 세부 정보를 추가로 표시할 수 있음
-	if (ImGui::IsItemHovered())
+	if (bIsSelected)
 	{
-		// 컴포넌트 타입 정보를 툴팁으로 표시
-		ImGui::SetTooltip("Component Type: %s", ComponentTypeName.ToString().data());
+		ImGui::PopStyleColor();
 	}
 
-	// PrimitiveComponent인 경우 추가 정보
-	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InComponent))
+	if (ImGui::IsItemClicked())
 	{
-		ImGui::SameLine();
-		ImGui::TextColored(
-			PrimitiveComponent->IsVisible() ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
-			PrimitiveComponent->IsVisible() ? "[Visible]" : "[Hidden]"
-		);
+		UUIManager::GetInstance().SetSelectedObject(TObjectPtr<UObject>(InComponent));
 	}
+	ImGui::PopID();
 }
 
 void UActorDetailWidget::StartRenamingActor(TObjectPtr<AActor> InActor)

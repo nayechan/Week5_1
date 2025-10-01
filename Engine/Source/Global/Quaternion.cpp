@@ -93,3 +93,42 @@ FVector FQuaternion::RotateVector(const FVector& v) const
 	FQuaternion r = (*this) * p * this->Inverse();
 	return FVector(r.X, r.Y, r.Z);
 }
+
+FQuaternion FQuaternion::FromMatrix(const FMatrix& M)
+{
+    FQuaternion Q;
+    float Trace = M.Data[0][0] + M.Data[1][1] + M.Data[2][2];
+    if (Trace > 0)
+    {
+        float S = sqrtf(Trace + 1.0f) * 2.0f;
+        Q.W = 0.25f * S;
+        Q.X = (M.Data[2][1] - M.Data[1][2]) / S;
+        Q.Y = (M.Data[0][2] - M.Data[2][0]) / S;
+        Q.Z = (M.Data[1][0] - M.Data[0][1]) / S;
+    }
+    else if ((M.Data[0][0] > M.Data[1][1]) && (M.Data[0][0] > M.Data[2][2]))
+    {
+        float S = sqrtf(1.0f + M.Data[0][0] - M.Data[1][1] - M.Data[2][2]) * 2.0f;
+        Q.W = (M.Data[2][1] - M.Data[1][2]) / S;
+        Q.X = 0.25f * S;
+        Q.Y = (M.Data[0][1] + M.Data[1][0]) / S;
+        Q.Z = (M.Data[0][2] + M.Data[2][0]) / S;
+    }
+    else if (M.Data[1][1] > M.Data[2][2])
+    {
+        float S = sqrtf(1.0f + M.Data[1][1] - M.Data[0][0] - M.Data[2][2]) * 2.0f;
+        Q.W = (M.Data[0][2] - M.Data[2][0]) / S;
+        Q.X = (M.Data[0][1] + M.Data[1][0]) / S;
+        Q.Y = 0.25f * S;
+        Q.Z = (M.Data[1][2] + M.Data[2][1]) / S;
+    }
+    else
+    {
+        float S = sqrtf(1.0f + M.Data[2][2] - M.Data[0][0] - M.Data[1][1]) * 2.0f;
+        Q.W = (M.Data[1][0] - M.Data[0][1]) / S;
+        Q.X = (M.Data[0][2] + M.Data[2][0]) / S;
+        Q.Y = (M.Data[1][2] + M.Data[2][1]) / S;
+        Q.Z = 0.25f * S;
+    }
+    return Q;
+}

@@ -365,7 +365,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	// World 없으면 Early Return
 	if (!TargetWorld)
 	{
-		UE_LOG("Renderer::RenderLevel: No target world found, early return");
 		return;
 	}
 
@@ -417,7 +416,6 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 	auto RenderCallback = [&renderedPrimitiveCount, &lodCounts, &InCurrentCamera, ViewMode, this](UPrimitiveComponent* primitive, const void* context) -> void
 	{
 		if (!primitive) {
-			UE_LOG("Renderer: Null primitive encountered, skipping render");
 			return;
 		}
 		if (!primitive->IsVisible())
@@ -453,13 +451,13 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
-		case EPrimitiveType::StaticMesh:
-        {
-            UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-            if (MeshComponent)
-            {
-				// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
-				int32 LodIndex = MeshComponent->GetCurrentLODIndex();
+			case EPrimitiveType::StaticMesh:
+			{
+				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+				if (MeshComponent)
+				{
+					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
+					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
 
 				/*FVector Min, Max;
 				MeshComponent->GetWorldAABB(Min, Max);
@@ -467,27 +465,27 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 				FVector CamerLocation = InCurrentCamera->GetLocation();
 				float DistSq = (CamerLocation - CompLocation).LengthSquared();
 
-			const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-			int32 LodIndex = 0;
-			for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
-			{
-				if (DistSq >= LodDistanceSq[i])
+				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
+				int32 LodIndex = 0;
+				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
 				{
-					LodIndex = i;
-					break;
+					if (DistSq >= LodDistanceSq[i])
+					{
+						LodIndex = i;
+						break;
+					}
+					MeshComponent->SetCurrentLODIndex(LodIndex);*/
+					if (LodIndex >= 0 && LodIndex < 3)
+					{
+						lodCounts[LodIndex]++;
+					}
 				}
-				MeshComponent->SetCurrentLODIndex(LodIndex);*/
-                if (LodIndex >= 0 && LodIndex < 3)
-                {
-                    lodCounts[LodIndex]++;
-                }
-            }
-			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-			break;
-        }
-		default:
-			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
-			break;
+				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+				break;
+			}
+			default:
+				RenderPrimitiveDefault(primitive, LoadedRasterizerState);
+				break;
 		}
 	};
 
@@ -647,12 +645,9 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 	Pipeline->UpdatePipeline(PipelineInfo);
 
 	// Constant buffer & transform
+	// Use WorldTransform directly (already has UEToDx applied)
 	Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
-	UpdateConstant(
-		InMeshComp->GetRelativeLocation(),
-		InMeshComp->GetRelativeRotation(),
-		InMeshComp->GetRelativeScale3D()
-	);
+	UpdateConstant(InMeshComp->GetWorldTransform());
 
 	Pipeline->SetVertexBuffer(vb, sizeof(FNormalVertex));
 	Pipeline->SetIndexBuffer(ib, 0);
@@ -747,12 +742,9 @@ void URenderer::RenderPrimitiveDefault(UPrimitiveComponent* InPrimitiveComp, ID3
 	Pipeline->UpdatePipeline(PipelineInfo);
 
 	// Update pipeline buffers
+	// Use WorldTransform directly (already has UEToDx applied)
 	Pipeline->SetConstantBuffer(0, true, ConstantBufferModels);
-	UpdateConstant(
-		InPrimitiveComp->GetRelativeLocation(),
-		InPrimitiveComp->GetRelativeRotation(),
-		InPrimitiveComp->GetRelativeScale3D()
-	);
+	UpdateConstant(InPrimitiveComp->GetWorldTransform());
 	Pipeline->SetConstantBuffer(2, true, ConstantBufferColor);
 	UpdateConstant(InPrimitiveComp->GetColor());
 

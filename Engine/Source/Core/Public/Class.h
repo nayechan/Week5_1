@@ -33,6 +33,7 @@ public:
 	const FName& GetClassTypeName() const { return ClassName; }
 	TObjectPtr<UClass> GetSuperClass() const { return SuperClass; }
 	size_t GetClassSize() const { return ClassSize; }
+	static TArray<TObjectPtr<UClass>> GetSubclassesOf(TObjectPtr<UClass> InParentClass);
 
 private:
 	// '최초 사용 시 생성' 기법을 위해 접근자 함수를 제공합니다.

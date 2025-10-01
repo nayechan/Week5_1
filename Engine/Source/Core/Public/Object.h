@@ -86,6 +86,7 @@ T* Cast(UObject* InObject)
 		return static_cast<T*>(InObject);
 	}
 
+
 	return nullptr;
 }
 

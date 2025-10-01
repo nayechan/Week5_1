@@ -69,6 +69,12 @@ public:
 	USceneComponent* GetRootComponent() const { return RootComponent.Get(); }
 	const TArray<TObjectPtr<UActorComponent>>& GetOwnedComponents() const { return OwnedComponents; }
 
+	/**
+	 * @brief Get all components including nested children (uses Outer chain)
+	 * This includes components attached to other components in the hierarchy
+	 */
+	TArray<UActorComponent*> GetAllComponents() const;
+
 	void SetRootComponent(USceneComponent* InOwnedComponents) { RootComponent = InOwnedComponents; }
 
 	virtual UTextRenderComponent* GetUUIDTextComponent() const { return nullptr; }
@@ -76,6 +82,8 @@ public:
 	const FVector& GetActorLocation() const;
 	const FVector& GetActorRotation() const;
 	const FVector& GetActorScale3D() const;
+
+	UActorComponent* AddComponentByClass(UClass* ComponentClass, const FName& ComponentName);
 
 	template<class T>
 	T* CreateDefaultSubobject(const FName& InName)

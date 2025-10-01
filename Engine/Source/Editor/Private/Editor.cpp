@@ -99,6 +99,20 @@ void UEditor::Update()
 	FViewport* Viewport = Renderer.GetViewportClient();
 	UInputManager& InputManager = UInputManager::GetInstance();
 
+	// CRITICAL: Update all world transforms BEFORE any picking or BVH operations
+	// Level::Update() is called AFTER Editor::Update(), so we must update transforms here first
+	ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+	if (CurrentLevel)
+	{
+		for (auto& Actor : CurrentLevel->GetActors())
+		{
+			if (Actor && Actor->GetRootComponent())
+			{
+				Actor->GetRootComponent()->UpdateWorldTransform();
+			}
+		}
+	}
+
 	// 뷰포트 레이아웃은 PIE 모드와 관계없이 항상 업데이트
 	// (창 크기 변경, 스플리터 드래그, 뷰포트 전환 애니메이션 등)
 	UpdateLayout();
@@ -581,6 +595,11 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 		{
 			// 드래그 끝나면 선택 액터의 프리미티브를 더티 큐에 등록
 			MarkActorPrimitivesDirty(Gizmo.GetSelectedActor());
+
+			if (Gizmo.GetSelectedActor()->GetRootComponent())
+			{
+				Gizmo.GetSelectedActor()->GetRootComponent()->UpdateWorldTransform();
+			}
 
 			// Octree 동적 목록으로 이동
 			for (const auto& Comp : Gizmo.GetSelectedActor()->GetOwnedComponents())
