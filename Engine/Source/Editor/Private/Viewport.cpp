@@ -191,7 +191,11 @@ void FViewport::SetSingleViewportMode(int InActiveIndex)
 	for (int i = 0; i < ViewportClients.size(); ++i)
 	{
 		ViewportClients[i].bIsVisible = (i == InActiveIndex);
+		ViewportClients[i].bIsActive = (i == InActiveIndex);
 	}
+
+	// 전체화면 버튼을 클릭한 뷰포트를 ActiveViewportClient로 설정
+	ActiveViewportClient = &ViewportClients[InActiveIndex];
 }
 
 void FViewport::SetMultiViewportMode()

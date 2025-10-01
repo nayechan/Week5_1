@@ -27,6 +27,11 @@ public:
 	void StopPIE();
 
 	/**
+	 * @brief PIE World Update (PIE가 실행 중일 때만)
+	 */
+	void Update(float DeltaTime);
+
+	/**
 	 * @brief PIE 일시정지/재개
 	 */
 	void TogglePausePIE();

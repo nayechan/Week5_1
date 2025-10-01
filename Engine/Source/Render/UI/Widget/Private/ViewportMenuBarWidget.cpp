@@ -135,16 +135,8 @@ void UViewportMenuBarWidget::RenderWidget()
 					{
 						if (!bCurrentSingleMode)  // 현재 멀티 -> 싱글로 전환
 						{
-							FViewportClient* ActiveClient = Viewport->GetActiveViewportClient();
-							int ActiveIndex = Index;
-							if (ActiveClient)
-							{
-								for (int i = 0; i < ViewportClients.size(); ++i)
-								{
-									if (&ViewportClients[i] == ActiveClient) { ActiveIndex = i; break; }
-								}
-							}
-							Editor->SetSingleViewportLayout(ActiveIndex);
+							// 클릭한 뷰포트를 active viewport로 설정
+							Editor->SetSingleViewportLayout(Index);
 						}
 						else  // 현재 싱글 -> 멀티로 전환
 						{

@@ -9,6 +9,7 @@
 #include "Manager/Asset/Public/AssetManager.h"
 #include "Manager/Time/Public/TimeManager.h"
 #include "Manager/World/Public/WorldManager.h"
+#include "Manager/PIE/Public/PIEManager.h"
 
 #include "Manager/UI/Public/UIManager.h"
 #include "Manager/Config/Public/ConfigManager.h"
@@ -135,9 +136,11 @@ void FClientApp::UpdateSystem() const
 	auto& Renderer = URenderer::GetInstance();
 	auto& LevelManager = ULevelManager::GetInstance();
 	auto& WorldManager = UWorldManager::GetInstance();
+	auto& PIEManager = UPIEManager::GetInstance(); // PIEManager 추가
 
 	LevelManager.Update();
 	WorldManager.Update(TimeManager.GetDeltaTime()); // World 기반 Tick
+	PIEManager.Update(TimeManager.GetDeltaTime()); // PIE World Tick
 	TimeManager.Update();
 	InputManager.Update(Window);
 	UIManager.Update();
