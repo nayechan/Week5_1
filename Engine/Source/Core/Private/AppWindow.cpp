@@ -151,7 +151,6 @@ LRESULT CALLBACK FAppWindow::WndProc(HWND InWindowHandle, uint32 InMessage, WPAR
 
 	case WM_SETFOCUS:
 		// 윈도우가 포커스를 얻었을 때 입력 활성화 및 상태 복원
-		UE_LOG("AppWindow: Window 포커스 획득 (WM_SETFOCUS)");
 		UInputManager::GetInstance().SetWindowFocus(true);
 		UUIManager::GetInstance().OnWindowRestored();
 		break;
@@ -172,7 +171,6 @@ LRESULT CALLBACK FAppWindow::WndProc(HWND InWindowHandle, uint32 InMessage, WPAR
 		else
 		{
 			// 윈도우가 활성화될 때 (WA_ACTIVE 또는 WA_CLICKACTIVE)
-			UE_LOG("AppWindow: Window 활성화 (WM_ACTIVATE)");
 			UInputManager::GetInstance().SetWindowFocus(true);
 			UUIManager::GetInstance().OnWindowRestored();
 		}

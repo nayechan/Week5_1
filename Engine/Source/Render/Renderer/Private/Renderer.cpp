@@ -360,6 +360,9 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		? InViewport.RenderTargetWorld
 		: UWorldManager::GetInstance().GetCurrentWorld().Get();
 
+	// PIE World 확인
+	bool bIsPIEWorld = InViewport.RenderTargetWorld && InViewport.RenderTargetWorld->IsPIEWorld();
+
 	// World 없으면 Early Return
 	if (!TargetWorld)
 	{
@@ -420,6 +423,11 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 		{
 			return;
 		}
+		
+		// 렌더링되는 액터 디버그 로그
+		UE_LOG("Renderer: Rendering primitive %s (Owner: %s)", 
+		       primitive->GetName().ToString().data(),
+		       primitive->GetOwner() ? primitive->GetOwner()->GetName().ToString().data() : "null");
 
 		// LOD 업데이트 추가 (StaticMesh인 경우에만, 6프레임마다)
 		static int lodFrameCounter = 0;
@@ -448,23 +456,28 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 
 		switch (primitive->GetPrimitiveType())
 		{
-			case EPrimitiveType::StaticMesh:
-			{
-				UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
-				if (MeshComponent)
-				{
+		case EPrimitiveType::StaticMesh:
+        {
+            UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+            if (MeshComponent)
+            {
+                UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(primitive);
+                if (MeshComponent)
+                {
 					// LOD는 이미 UpdateLODFast()에서 계산되었으므로 중복 계산 제거
 					int32 LodIndex = MeshComponent->GetCurrentLODIndex();
 
-					/*FVector Min, Max;
-					MeshComponent->GetWorldAABB(Min, Max);
-					FVector CompLocation = (Min + Max) * 0.5f;
-					FVector CamerLocation = InCurrentCamera->GetLocation();
-					float DistSq = (CamerLocation - CompLocation).LengthSquared();
+				/*FVector Min, Max;
+				MeshComponent->GetWorldAABB(Min, Max);
+				FVector CompLocation = (Min + Max) * 0.5f;
+				FVector CamerLocation = InCurrentCamera->GetLocation();
+				float DistSq = (CamerLocation - CompLocation).LengthSquared();
 
-				const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
-				int32 LodIndex = 0;
-				for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
+			const TArray<float>& LodDistanceSq = MeshComponent->GetLODDistancesSquared();
+			int32 LodIndex = 0;
+			for (int32 i = LodDistanceSq.size() - 1; i >= 0; i--)
+			{
+				if (DistSq >= LodDistanceSq[i])
 				{
 					if (DistSq >= LodDistanceSq[i])
 					{
@@ -472,14 +485,15 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 						break;
 					}
 					MeshComponent->SetCurrentLODIndex(LodIndex);*/
-					if (LodIndex >= 0 && LodIndex < 3)
-					{
-						lodCounts[LodIndex]++;
-					}
-				}
-				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
-				break;
-			}
+                    if (LodIndex >= 0 && LodIndex < 3)
+                    {
+                        lodCounts[LodIndex]++;
+                    }
+                }
+            }
+			RenderStaticMesh(MeshComponent, LoadedRasterizerState);
+			break;
+        }
 		default:
 			RenderPrimitiveDefault(primitive, LoadedRasterizerState);
 			break;
@@ -1525,13 +1539,12 @@ void URenderer::TestComputeShaderExecution() const
 		{
 			FVector4* ResultData = static_cast<FVector4*>(MappedResult.pData);
 
-			UE_LOG("=== Compute Shader 테스트 결과 ===");
+			// Compute Shader 테스트 결과 확인 (10개 요소)
 			for (uint32 i = 0; i < 10 && i < ElementCount; ++i)
 			{
-				UE_LOG("Element[%u]: (%.2f, %.2f, %.2f, %.2f)",
-					i, ResultData[i].X, ResultData[i].Y, ResultData[i].Z, ResultData[i].W);
+				// 결과 데이터 확인 가능 (ResultData[i])
 			}
-			UE_LOG("=== 테스트 완료 ===");
+			// 테스트 완료
 
 			GetDeviceContext()->Unmap(StagingBuffer, 0);
 		}

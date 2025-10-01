@@ -23,7 +23,6 @@ void UCullingManager::Initialize(UDeviceResources* InDeviceResources)
 	// LOD 설정 로드
 	LODManager->LoadSettings();
 
-	UE_LOG("CullingManager 초기화 완료");
 }
 
 void UCullingManager::Release()

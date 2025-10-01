@@ -26,7 +26,6 @@ UClass::UClass(const FName& InName, TObjectPtr<UClass> InSuperClass, size_t InCl
 	ClassConstructorType InConstructor)
 	: ClassName(InName), SuperClass(InSuperClass), ClassSize(InClassSize), Constructor(InConstructor)
 {
-	UE_LOG("UClass: 클래스 등록: %s", ClassName.ToString().data());
 }
 
 /**
@@ -103,7 +102,6 @@ void UClass::SignUpClass(TObjectPtr<UClass> InClass)
 	if (InClass)
 	{
 		GetAllClasses().emplace_back(InClass);
-		UE_LOG("UClass: Class registered: %s (Total: %llu)", InClass->GetClassTypeName().ToString().data(), GetAllClasses().size());
 	}
 }
 

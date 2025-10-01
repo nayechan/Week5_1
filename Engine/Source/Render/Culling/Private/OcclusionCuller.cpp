@@ -84,7 +84,6 @@ void UOcclusionCuller::InitializeComputeShaders()
 
 	if (HZBComputeShader)
 	{
-		UE_LOG("HZB Compute Shader 컴파일 성공!");
 	}
 	else
 	{
@@ -96,7 +95,6 @@ void UOcclusionCuller::InitializeComputeShaders()
 
 	if (DepthCopyComputeShader)
 	{
-		UE_LOG("DepthCopy Compute Shader 컴파일 성공!");
 	}
 	else
 	{
