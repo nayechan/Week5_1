@@ -14,7 +14,6 @@
 #include "Manager/Config/Public/ConfigManager.h"
 #include "Manager/Time/Public/TimeManager.h"
 #include "Component/Public/PrimitiveComponent.h"
-#include "Component/Public/BillBoardComponent.h"
 #include "Component/Public/TextRenderComponent.h"
 #include "Level/Public/Level.h"
 #include "Global/Quaternion.h"
@@ -206,15 +205,6 @@ void UEditor::RenderEditor(UCamera* InCamera)
 		if (!SelectedActor) return;
 
 		Gizmo.RenderGizmo(SelectedActor, InCamera);
-
-		for (const auto& Comp : SelectedActor->GetOwnedComponents())
-        {
-			if (UBillBoardComponent* BillboardComp = Cast<UBillBoardComponent>(Comp.Get()))
-			{
-				URenderer::GetInstance().RenderBillboard(BillboardComp, InCamera);
-				break;	// Assume one billboard per actor
-			}
-        }
 
 		// UUID Text Component
 		if (UTextRenderComponent* UUIDTextComponent = SelectedActor->GetUUIDTextComponent())
@@ -572,8 +562,16 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 	const FVector& MousePos = InputManager.GetMousePosition();
 	const D3D11_VIEWPORT& ViewportInfo = CurrentViewport->GetViewportInfo();
 
-	const float NdcX = ((MousePos.X - ViewportInfo.TopLeftX) / ViewportInfo.Width) * 2.0f - 1.0f;
-	const float NdcY = -(((MousePos.Y - ViewportInfo.TopLeftY) / ViewportInfo.Height) * 2.0f - 1.0f);
+	// 다중 뷰포트에서의 정확한 NDC 변환
+	float RelativeX = MousePos.X - ViewportInfo.TopLeftX;
+	float RelativeY = MousePos.Y - ViewportInfo.TopLeftY;
+	
+	// 뷰포트 경계 체크 및 클램핑
+	RelativeX = max(0.0f, min(RelativeX, ViewportInfo.Width));
+	RelativeY = max(0.0f, min(RelativeY, ViewportInfo.Height));
+	
+	const float NdcX = (RelativeX / ViewportInfo.Width) * 2.0f - 1.0f;
+	const float NdcY = -((RelativeY / ViewportInfo.Height) * 2.0f - 1.0f);
 
 	FRay WorldRay = CurrentCamera->ConvertToWorldRay(NdcX, NdcY);
 
@@ -914,7 +912,33 @@ FVector UEditor::GetGizmoDragLocation(UCamera* InActiveCamera, FRay& WorldRay)
 		GizmoAxis = GizmoAxis4 * FMatrix::RotationMatrix(RadRotation);
 	}
 
-	if (ObjectPicker.IsRayCollideWithPlane(WorldRay, PlaneOrigin, InActiveCamera->CalculatePlaneNormal(GizmoAxis).Cross(GizmoAxis), MouseWorld))
+	// 다중 뷰포트에서 안정적인 평면 법선 버그 계산
+	FVector PlaneNormal = InActiveCamera->CalculatePlaneNormal(GizmoAxis).Cross(GizmoAxis);
+	
+	// 평면 법선이 너무 작을 때 대체 법선 사용
+	if (PlaneNormal.LengthSquared() < 1e-6f)
+	{
+		// 카메라 Forward와 기즈모 축이 평행할 때 대체 법선 사용
+		FVector CameraRight = InActiveCamera->GetRight();
+		FVector CameraUp = InActiveCamera->GetUp();
+		
+		// 기쥸모 축과 수직인 방향 중 더 안정적인 것 선택
+		float RightDot = abs(CameraRight.Dot(GizmoAxis));
+		float UpDot = abs(CameraUp.Dot(GizmoAxis));
+		
+		if (RightDot < UpDot)
+		{
+			PlaneNormal = CameraRight.Cross(GizmoAxis);
+		}
+		else
+		{
+			PlaneNormal = CameraUp.Cross(GizmoAxis);
+		}
+		
+		PlaneNormal.Normalize();
+	}
+	
+	if (ObjectPicker.IsRayCollideWithPlane(WorldRay, PlaneOrigin, PlaneNormal, MouseWorld))
 	{
 		FVector MouseDistance = MouseWorld - Gizmo.GetDragStartMouseLocation();
 		return Gizmo.GetDragStartActorLocation() + GizmoAxis * MouseDistance.Dot(GizmoAxis);

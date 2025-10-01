@@ -2,7 +2,6 @@
 #include "Level/Public/Level.h"
 
 #include "Actor/Public/Actor.h"
-#include "Component/Public/BillBoardComponent.h"
 #include "Component/Public/PrimitiveComponent.h"
 #include "Manager/Level/Public/LevelManager.h"
 #include "Manager/UI/Public/UIManager.h"
@@ -384,10 +383,6 @@ bool ULevel::DestroyActor(AActor* InActor)
 		const auto& Iterator = std::find(LevelPrimitiveComponents.begin(), LevelPrimitiveComponents.end(), ActorComponent);
 		if(Iterator != LevelPrimitiveComponents.end())
 			LevelPrimitiveComponents.erase(Iterator);
-		if (ActorComponent->GetClass() == UBillBoardComponent::StaticClass())
-		{
-			continue;
-		}
 		else if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComponent))
 		{
 			// 1) Attempt to remove from the static octree
