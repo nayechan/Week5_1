@@ -44,6 +44,9 @@ void UWorld::Tick(float DeltaTime)
     if (!Level)
         return;
 
+    // IMPORTANT: Process Level's pending deletions and system updates FIRST
+    Level->Update();
+
     // Level의 모든 액터들을 업데이트
     TArray<AActor*> Actors = Level->GetActorsPtrs();
     for (AActor* Actor : Actors)

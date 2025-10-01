@@ -47,15 +47,24 @@ void UActorTerminationWidget::RenderWidget()
 {
 	auto& InputManager = UInputManager::GetInstance();
 
-	if (SelectedActor)
+	// Always get the current selected actor directly from the level to avoid sync issues
+	ULevelManager& LevelManager = ULevelManager::GetInstance();
+	TObjectPtr<ULevel> CurrentLevel = LevelManager.GetCurrentLevel();
+	AActor* CurrentSelectedActor = CurrentLevel ? CurrentLevel->GetSelectedActor() : nullptr;
+
+	if (CurrentSelectedActor)
 	{
 		// ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.6f, 1.0f), "Selected: %s (%p)",
-		//                    SelectedActor->GetName().c_str(), SelectedActor);
+		//                    CurrentSelectedActor->GetName().c_str(), CurrentSelectedActor);
 
-		// ImGui Deprecated (굳이 명시적인 버튼이 없어도 관용적으로 이해할 수 있는 키 매핑)
-		// if (ImGui::Button("Delete Actor") || InputManager.IsKeyDown(EKeyInput::Delete))
-		if (InputManager.IsKeyDown(EKeyInput::Delete))
+		// Use IsKeyPressed instead of IsKeyDown to only trigger once per key press
+		// Also check if ImGui is not capturing keyboard input
+		bool bImGuiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
+		if (!bImGuiWantsKeyboard && InputManager.IsKeyPressed(EKeyInput::Delete))
 		{
+			UE_LOG("ActorTerminationWidget::RenderWidget: Delete 키 감지됨");
+			// Update SelectedActor before deletion
+			SelectedActor = CurrentSelectedActor;
 			DeleteSelectedActor();
 		}
 	}
@@ -70,10 +79,11 @@ void UActorTerminationWidget::RenderWidget()
  */
 void UActorTerminationWidget::DeleteSelectedActor()
 {
+	UE_LOG("===============================================");
 	UE_LOG("ActorTerminationWidget: 삭제를 위한 Actor Marking 시작");
 	if (!SelectedActor)
 	{
-		UE_LOG("ActorTerminationWidget: 삭제를 위한 Actor가 선택되지 않았습니다");
+		UE_LOG_ERROR("ActorTerminationWidget: 삭제를 위한 Actor가 선택되지 않았습니다");
 		return;
 	}
 
@@ -86,11 +96,15 @@ void UActorTerminationWidget::DeleteSelectedActor()
 		return;
 	}
 
-	UE_LOG_INFO("ActorTerminationWidget: 선택된 Actor를 삭제를 위해 마킹 처리: %s",
-	       SelectedActor->GetName() == FName::GetNone() ? "UnNamed" : SelectedActor->GetName().ToString().data());
+	UE_LOG_INFO("ActorTerminationWidget: 선택된 Actor를 삭제를 위해 마킹 처리: %s (ptr: %p)",
+	       SelectedActor->GetName() == FName::GetNone() ? "UnNamed" : SelectedActor->GetName().ToString().data(),
+	       SelectedActor.Get());
 
 	// 지연 삭제를 사용하여 안전하게 다음 틱에서 삭제
 	CurrentLevel->MarkActorForDeletion(SelectedActor);
+
+	UE_LOG("ActorTerminationWidget: MarkActorForDeletion 호출 완료");
+	UE_LOG("===============================================");
 
 	// MarkActorForDeletion에서 선택 해제도 처리하므로 여기에서는 단순히 nullptr로 설정
 	SelectedActor = nullptr;

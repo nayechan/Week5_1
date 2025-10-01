@@ -463,8 +463,8 @@ void URenderer::RenderLevel(FViewportClient& InViewport)
 				{
 					lodCounts[LodIndex]++;
 				}
+				RenderStaticMesh(MeshComponent, LoadedRasterizerState);
             }
-            RenderStaticMesh(MeshComponent, LoadedRasterizerState);
 			break;
         }
 		case EPrimitiveType::Billboard:
@@ -685,6 +685,12 @@ void URenderer::RenderEnd() const
 
 void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11RasterizerState* InRasterizerState)
 {
+	// Safety check: Component might have been deleted between frame preparation and rendering
+	if (!InMeshComp)
+	{
+		return;
+	}
+
     UStaticMesh* MeshAsset = InMeshComp->GetStaticMesh();
 	if (!MeshAsset || !MeshAsset->IsValid()) return;
 
@@ -779,7 +785,7 @@ void URenderer::RenderStaticMesh(UStaticMeshComponent* InMeshComp, ID3D11Rasteri
 
 void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCurrentCamera)
 {
-	if (!InCurrentCamera)
+	if (!InCurrentCamera || !InTextRenderComp)
 	{
 		return;
 	}
@@ -787,7 +793,7 @@ void URenderer::RenderText(UTextRenderComponent* InTextRenderComp, UCamera* InCu
 	InTextRenderComp->UpdateRotationMatrix(InCurrentCamera->GetLocation());
 	FMatrix RT = InTextRenderComp->GetRTMatrix();
 	// TODO: FMatrix WorldMatrix = InTextRenderComp->GetWorldMatrix();
-	
+
 	const FViewProjConstants& viewProjConstData = InCurrentCamera->GetFViewProjConstants();
 	FontRenderer->RenderText(InTextRenderComp->GetText().c_str(), RT, viewProjConstData);
 }
