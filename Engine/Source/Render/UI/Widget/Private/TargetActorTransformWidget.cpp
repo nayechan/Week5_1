@@ -38,12 +38,32 @@ void UTargetActorTransformWidget::RenderWidget()
 
 	if (TargetComponent)
 	{
+		bool bIsChildComponent = (TargetComponent->GetAttachParent() != nullptr);
+
 		if (LastSelectedComponent != TargetComponent)
 		{
 			LastSelectedComponent = TargetComponent;
-			EditLocation = TargetComponent->GetRelativeLocation();
-			EditRotation = TargetComponent->GetRelativeRotation();
-			EditScale = TargetComponent->GetRelativeScale3D();
+
+			if (bIsChildComponent)
+			{
+				// Child components store RelativeLocation in parent's DX space
+				// Convert DX -> UE for display: (X_dx, Y_dx, Z_dx) -> (Z_dx, X_dx, Y_dx)
+				FVector DxLoc = TargetComponent->GetRelativeLocation();
+				EditLocation = FVector(DxLoc.Z, DxLoc.X, DxLoc.Y);
+
+				FVector DxRot = TargetComponent->GetRelativeRotation();
+				EditRotation = FVector(DxRot.Z, DxRot.X, DxRot.Y);
+
+				FVector DxScale = TargetComponent->GetRelativeScale3D();
+				EditScale = FVector(DxScale.Z, DxScale.X, DxScale.Y);
+			}
+			else
+			{
+				// Root components already use UE space
+				EditLocation = TargetComponent->GetRelativeLocation();
+				EditRotation = TargetComponent->GetRelativeRotation();
+				EditScale = TargetComponent->GetRelativeScale3D();
+			}
 			bPositionChanged = bRotationChanged = bScaleChanged = false;
 		}
 
@@ -57,15 +77,42 @@ void UTargetActorTransformWidget::RenderWidget()
 
 		if (bPositionChanged)
 		{
-			TargetComponent->SetRelativeLocation(EditLocation);
+			if (bIsChildComponent)
+			{
+				// Convert UE -> DX before storing: (X_ue, Y_ue, Z_ue) -> (Y_ue, Z_ue, X_ue)
+				FVector DxLoc(EditLocation.Y, EditLocation.Z, EditLocation.X);
+				TargetComponent->SetRelativeLocation(DxLoc);
+			}
+			else
+			{
+				TargetComponent->SetRelativeLocation(EditLocation);
+			}
 		}
 		if (bRotationChanged)
 		{
-			TargetComponent->SetRelativeRotation(EditRotation);
+			if (bIsChildComponent)
+			{
+				// Convert UE -> DX before storing
+				FVector DxRot(EditRotation.Y, EditRotation.Z, EditRotation.X);
+				TargetComponent->SetRelativeRotation(DxRot);
+			}
+			else
+			{
+				TargetComponent->SetRelativeRotation(EditRotation);
+			}
 		}
 		if (bScaleChanged)
 		{
-			TargetComponent->SetRelativeScale3D(EditScale);
+			if (bIsChildComponent)
+			{
+				// Convert UE -> DX before storing
+				FVector DxScale(EditScale.Y, EditScale.Z, EditScale.X);
+				TargetComponent->SetRelativeScale3D(DxScale);
+			}
+			else
+			{
+				TargetComponent->SetRelativeScale3D(EditScale);
+			}
 		}
 	}
 	else

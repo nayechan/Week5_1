@@ -597,7 +597,13 @@ void UEditor::ProcessMouseInput(ULevel* InLevel)
 			// 드래그 끝나면 선택 액터의 프리미티브를 더티 큐에 등록
 			MarkActorPrimitivesDirty(Gizmo.GetSelectedActor());
 
-			if (Gizmo.GetSelectedActor()->GetRootComponent())
+			// Update transform of the dragged component and its children
+			if (USceneComponent* DraggedComponent = Gizmo.GetTargetComponent())
+			{
+				DraggedComponent->UpdateWorldTransform();
+			}
+			// Also update root component in case it wasn't the dragged component
+			else if (Gizmo.GetSelectedActor()->GetRootComponent())
 			{
 				Gizmo.GetSelectedActor()->GetRootComponent()->UpdateWorldTransform();
 			}
@@ -974,16 +980,22 @@ FVector UEditor::GetGizmoDragRotation(UCamera* InActiveCamera, FRay& WorldRay)
 			Angle = -Angle;
 		}
 
-		FQuaternion StartRotQuat = FQuaternion::FromEuler(Gizmo.GetDragStartActorRotation());
+		// Use stored Quaternion to avoid Euler wrapping issues
+		FQuaternion StartRotQuat = Gizmo.GetDragStartActorRotationQuat();
 		FQuaternion DeltaRotQuat = FQuaternion::FromAxisAngle(Gizmo.GetGizmoAxis(), Angle);
+		FQuaternion ResultQuat;
+
 		if (Gizmo.IsWorldMode())
 		{
-			return (DeltaRotQuat * StartRotQuat).ToEuler();
+			ResultQuat = DeltaRotQuat * StartRotQuat;
 		}
 		else
 		{
-			return (StartRotQuat * DeltaRotQuat).ToEuler();
+			ResultQuat = StartRotQuat * DeltaRotQuat;
 		}
+
+		// Convert to Euler only once at the end
+		return ResultQuat.ToEuler();
 	}
 	return Gizmo.GetActorRotation();
 }
