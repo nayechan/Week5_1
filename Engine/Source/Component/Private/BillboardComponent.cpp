@@ -27,70 +27,43 @@ void UBillboardComponent::UpdateFacingCamera(const UCamera* InCamera, bool bYawO
 	if (!InCamera) return;
 	if (!GetOwner()) return;
 
-	constexpr float EPS = 1e-6f;
-	constexpr float RAD2DEG = 180.0f / 3.14159265358979323846f;
-
 	// World position of this component (owner location + component relative location).
-	// For attached components use GetWorldTransformMatrix() if you need full hierarchy correctness.
+	// For attached components you may want GetWorldTransformMatrix() instead.
 	const FVector WorldPos = GetOwner()->GetActorLocation() + GetRelativeLocation();
 
-	// Forward: direction from billboard to camera (pointing toward camera)
-	FVector Forward = InCamera->GetLocation() - WorldPos;
-	const float DistSq = Forward.LengthSquared();
-	if (DistSq < EPS) return;
-	Forward.Normalize();
-
-	// Use camera's up vector so billboard also follows camera roll/tilt
-	FVector CamUp = InCamera->GetUp();
-
-	// If camera up is (almost) parallel to Forward, fallback to world up
-	const FVector WorldUp = FVector{ 0.0f, 0.0f, 1.0f };
-	if (fabsf(CamUp.Dot(Forward)) > 0.999f)
+	// Direction from billboard to camera in world space
+	FVector ToCamera = InCamera->GetLocation() - WorldPos;
+	const float DistSq = ToCamera.LengthSquared();
+	if (DistSq < 1e-8f)
 	{
-		CamUp = WorldUp;
+		// Camera is on the billboard — nothing to do
+		return;
 	}
+	ToCamera.Normalize();
 
-	// Right = CamUp x Forward
-	FVector Right = CamUp.Cross(Forward);
-	if (Right.LengthSquared() < EPS)
-	{
-		// Degenerate — pick an arbitrary right axis
-		Right = FVector{ 1.0f, 0.0f, 0.0f };
-	}
-	else
-	{
-		Right.Normalize();
-	}
-
-	// Recompute Up to ensure orthonormal basis
-	FVector Up = Forward.Cross(Right);
-	Up.Normalize();
-
-	// Extract Euler angles (engine expects (Roll, Pitch, Yaw) => (X, Y, Z))
-	// Yaw  = rotation about Z so forward projected onto XY-plane
-	const float yawRad = atan2f(Forward.Y, Forward.X);
-	const float yawDeg = yawRad * RAD2DEG;
-
-	// Pitch = rotation about Y (tilt up/down). Use forward Z and horizontal length.
-	const float horizLen = sqrtf(Forward.X * Forward.X + Forward.Y * Forward.Y);
-	const float pitchRad = atan2f(-Forward.Z, horizLen); // sign chosen to match existing convention
-	const float pitchDeg = pitchRad * RAD2DEG;
-
-	// Roll = rotation about X (twist). Derive from right/up vertical components.
-	const float rollRad = atan2f(Right.Z, Up.Z);
-	const float rollDeg = rollRad * RAD2DEG;
+	// Coordinate system: Z-up, X-forward, Y-right
+	// Compute yaw around Z so forward (X) faces camera projection on XY plane.
+	const float yawRad = atan2f(ToCamera.Y, ToCamera.X);
+	const float yawDeg = yawRad * (180.0f / 3.14159265358979323846f);
 
 	if (bYawOnly)
 	{
-		// Keep upright, only apply yaw (put yaw into Z)
+		// Engine maps FVector -> (Roll, Pitch, Yaw) => (X, Y, Z)
+		// Put yaw into Z to rotate around world Z.
 		SetRelativeRotation(FVector(0.0f, 0.0f, yawDeg));
 	}
 	else
 	{
+		// Full spherical facing (yaw + pitch).
+		const float horizLen = sqrtf(ToCamera.X * ToCamera.X + ToCamera.Y * ToCamera.Y);
+		const float pitchRad = atan2f(-ToCamera.Z, horizLen); // sign may be tuned
+		const float pitchDeg = pitchRad * (180.0f / 3.14159265358979323846f);
+
 		// Store as (Roll, Pitch, Yaw) -> (X, Y, Z)
-		SetRelativeRotation(FVector(rollDeg, pitchDeg, yawDeg));
+		SetRelativeRotation(FVector(0.0f, pitchDeg, yawDeg));
 	}
 
+	// Ensure world transform is recomputed
 	MarkAsDirty();
 }
 
