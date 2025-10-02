@@ -207,6 +207,13 @@ void UActorDetailWidget::RenderComponentTree(AActor* InSelectedActor)
 							// 루트도 없는 경우, 이 컴포넌트를 새로운 루트로 설정
 							InSelectedActor->SetRootComponent(NewSceneComponent);
 						}
+
+						ULevel* CurrentLevel = ULevelManager::GetInstance().GetCurrentLevel();
+						if (CurrentLevel)
+						{
+							CurrentLevel->AddLevelPrimitiveComponent(InSelectedActor);
+							CurrentLevel->AddActorToDynamic(InSelectedActor);
+						}
 					}
 				}
 				ImGui::CloseCurrentPopup();

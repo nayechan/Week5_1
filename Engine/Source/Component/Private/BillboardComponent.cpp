@@ -29,43 +29,43 @@ void UBillboardComponent::UpdateFacingCamera(const UCamera* InCamera, bool bYawO
 	if (!InCamera) return;
 	if (!GetOwner()) return;
 
-	// World position of this component (owner location + component relative location).
-	// For attached components you may want GetWorldTransformMatrix() instead.
-	const FVector WorldPos = GetOwner()->GetActorLocation() + GetRelativeLocation();
+	constexpr float EPS = 1e-8f;
+	constexpr float RAD2DEG = 180.0f / 3.14159265358979323846f;
+
+	// Use the component's world transform so attachments/parents are respected
+	const FMatrix WorldTM = GetWorldTransform();
+	const FVector WorldPos = WorldTM.GetLocation();
 
 	// Direction from billboard to camera in world space
 	FVector ToCamera = InCamera->GetLocation() - WorldPos;
-	const float DistSq = ToCamera.LengthSquared();
-	if (DistSq < 1e-8f)
+	if (ToCamera.LengthSquared() < EPS)
 	{
-		// Camera is on the billboard — nothing to do
+		// Camera is essentially on the billboard — nothing to do
 		return;
 	}
 	ToCamera.Normalize();
 
-	// Coordinate system: Z-up, X-forward, Y-right
-	// Compute yaw around Z so forward (X) faces camera projection on XY plane.
+	// Compute yaw from projection on XY plane (Z-up, X-forward, Y-right)
 	const float yawRad = atan2f(ToCamera.Y, ToCamera.X);
-	const float yawDeg = yawRad * (180.0f / 3.14159265358979323846f);
+	const float yawDeg = yawRad * RAD2DEG;
 
 	if (bYawOnly)
 	{
-		// Engine maps FVector -> (Roll, Pitch, Yaw) => (X, Y, Z)
-		// Put yaw into Z to rotate around world Z.
+		// Keep upright: roll = 0, pitch = 0, yaw in Z component
+		// Engine rotation vector layout used here: (Roll, Pitch, Yaw) -> (X, Y, Z)
 		SetRelativeRotation(FVector(0.0f, 0.0f, yawDeg));
 	}
 	else
 	{
-		// Full spherical facing (yaw + pitch).
+		// Full facing but keep upright (no roll)
 		const float horizLen = sqrtf(ToCamera.X * ToCamera.X + ToCamera.Y * ToCamera.Y);
-		const float pitchRad = atan2f(-ToCamera.Z, horizLen); // sign may be tuned
-		const float pitchDeg = pitchRad * (180.0f / 3.14159265358979323846f);
+		const float pitchRad = atan2f(-ToCamera.Z, horizLen); // sign chosen to match engine convention
+		const float pitchDeg = pitchRad * RAD2DEG;
 
-		// Store as (Roll, Pitch, Yaw) -> (X, Y, Z)
+		// Store as (Roll, Pitch, Yaw) -> (X, Y, Z); roll forced to 0 to avoid twist
 		SetRelativeRotation(FVector(0.0f, pitchDeg, yawDeg));
 	}
 
-	// Ensure world transform is recomputed
 	MarkAsDirty();
 }
 
